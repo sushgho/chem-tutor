@@ -42,7 +42,7 @@ export default function Avatar({ speaking, listening }: { speaking: boolean; lis
   const lean = listening ? -2 : 0;
 
   return (
-    <svg viewBox="0 0 200 220" className="avatar" role="img" aria-label="Teacher avatar">
+    <svg viewBox="0 0 200 220" className="avatar" role="img" aria-label="DIVA, your chemistry teacher">
       {/* hair back */}
       <path d="M38 105 C30 40 80 14 100 14 C122 14 172 40 162 105 C162 150 150 160 150 160 L50 160 C50 160 38 150 38 105Z" fill="#2b1d17" />
       {/* shoulders / blouse */}

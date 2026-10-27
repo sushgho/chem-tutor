@@ -1,6 +1,6 @@
 # Chemistry Teaching Assistant (RAG + talking teacher)
 
-A tutor for Class XI-XII Chemistry. The teacher (Dr. Asha) explains topics, answers
+A tutor for Class XI-XII Chemistry. The teacher (DIVA) explains topics, answers
 doubts from your course material with page citations, speaks answers aloud through an
 animated avatar, and tracks each student's progress.
 

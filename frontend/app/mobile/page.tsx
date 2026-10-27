@@ -239,7 +239,7 @@ export default function MobileTeacherApp() {
     <main className={styles.app}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>DR. ASHA · CLASS XI–XII</p>
+          <p className={styles.eyebrow}>DIVA · CLASS XI–XII</p>
           <h1>Mobile Teacher App</h1>
         </div>
         <button className={styles.soundButton} onClick={() => setMuted((value) => !value)} aria-label={muted ? "Turn voice on" : "Mute voice"}>
@@ -313,7 +313,7 @@ export default function MobileTeacherApp() {
         <Image
           className={styles.teacherPortrait}
           src="/images/teacher-asha.png"
-          alt="Dr. Asha, your chemistry teacher, in a classroom"
+          alt="DIVA, your chemistry teacher, in a classroom"
           width={160}
           height={160}
           priority
@@ -340,7 +340,7 @@ export default function MobileTeacherApp() {
         )}
         {msgs.map((message, index) => (
           <article key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : ""}`}>
-            <span className={styles.messageRole}>{message.role === "user" ? "You" : "Dr. Asha"}</span>
+            <span className={styles.messageRole}>{message.role === "user" ? "You" : "DIVA"}</span>
             <Markdown>{message.content || "…"}</Markdown>
             {message.sources && message.sources.length > 0 && (
               <p className={styles.sources}>

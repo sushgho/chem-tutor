@@ -207,7 +207,7 @@ export default function Home() {
           <Avatar speaking={speaking} listening={listening} />
           <div style={{ flex: 1 }}>
             <h2>{topic ? topic.title : "Pick a topic to begin"}</h2>
-            <div className="sub">{topic ? topic.unit : "Dr. Asha will teach it and answer your doubts."}</div>
+            <div className="sub">{topic ? topic.unit : "DIVA will teach it and answer your doubts."}</div>
             <div className="actions">
               <button className="primary" disabled={!topic || busy} onClick={teach}>Teach me this</button>
               <button disabled={!topic || busy} onClick={startQuiz}>Quick check</button>
