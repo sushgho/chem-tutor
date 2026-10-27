@@ -65,6 +65,69 @@ either a hosted streaming avatar (HeyGen, D-ID, Simli, Tavus) or a three.js VRM 
 lip-synced from visemes returned by a cloud TTS (Azure, ElevenLabs, Cartesia).
 `frontend/lib/speech.ts` is where to replace browser TTS with that service.
 
+## Mobile web app and Google Play
+The mobile teacher is available at `/mobile`. The frontend includes a web app manifest,
+app icons, and a service worker so it can be installed from a supported mobile browser.
+The offline cache only saves the mobile page and its Next.js static assets; lessons,
+chat, quizzes, and progress still need an internet connection and the backend.
+
+### Make it public on Render
+The root `render.yaml` defines the frontend, FastAPI backend, and PostgreSQL database.
+To create the public app:
+1. Push the project to a GitHub repository that your Render account can access. The
+   Render Blueprint must be at the repository root.
+2. In Render, choose **New → Blueprint**, connect the repository, and review the
+   resources and prices before applying the Blueprint. The backend uses a 2 GB plan to
+   run the sentence-transformers embedding model; the frontend uses a smaller web
+   service. The database plan and its price are selected in Render.
+3. During Blueprint setup, provide `GROQ_API_KEY` as a secret environment variable in
+   Render. Do not put the key in this file, in `NEXT_PUBLIC_*`, or in GitHub.
+4. Wait for the database and both services to finish deploying. The frontend's public
+   `onrender.com` URL is the link anyone can use; open `<frontend-url>/mobile`.
+5. Test the public mobile page, curriculum, lessons, and quizzes. Add teaching material
+   to the hosted database using the backend ingestion command before expecting
+   material-based lessons or quizzes to work.
+
+The app currently allows anonymous students and has no authentication or request
+throttling. Before widely sharing a public link, monitor model/database usage and set
+provider-level spending limits or add abuse protections. Student progress and
+conversation history are stored in the database; publish an appropriate privacy notice.
+
+To publish the same experience on the web and Google Play:
+1. Deploy the frontend and backend to production, using a stable HTTPS domain such as
+   `https://tutor.example.com`. Set the frontend's `BACKEND_URL` to the public backend
+   URL and configure production secrets on the server. Never put `GROQ_API_KEY` in
+   frontend variables or source control.
+2. Verify `https://tutor.example.com/mobile` and
+   `https://tutor.example.com/manifest.webmanifest` work over HTTPS. On Android Chrome,
+   open `/mobile` and use **Install app** or **Add to Home screen** to test the PWA.
+3. Install Java and the Android SDK, then install Bubblewrap:
+   ```bash
+   npm install --global @bubblewrap/cli
+   bubblewrap init --manifest=https://tutor.example.com/manifest.webmanifest
+   ```
+   Choose a permanent Android application ID (for example `com.yourcompany.chemtutor`)
+   and create/secure the Android signing key. Keep the application ID and signing key
+   safe; Play Store updates must use the same ID and signing identity.
+4. Build the Android Trusted Web Activity (TWA) bundle with Bubblewrap:
+   ```bash
+   bubblewrap build
+   ```
+   Follow Bubblewrap's output for the generated Android project and signed Android App
+   Bundle (`.aab`).
+5. Publish the Digital Asset Links JSON generated for the final Android package and
+   signing certificate at
+   `https://tutor.example.com/.well-known/assetlinks.json`. Verify the file is publicly
+   reachable before testing the Android app; without this verification, Android may
+   show browser controls instead of opening the trusted full-screen app.
+6. Create the app in Google Play Console, upload the `.aab` to an internal test track,
+   test it on Android, and complete the Play listing, content rating, privacy policy,
+   data safety, and current Play Console requirements before requesting release.
+
+The final TWA configuration cannot be generated until the production HTTPS domain and
+permanent Android application ID are chosen. Use a domain you control: the Play Store
+app is a full-screen window onto that website, and the website must remain available.
+
 ## Run from GitHub (Codespaces)
 1. Push this folder to a GitHub repo (keep it private if it will hold your keys' context or notes).
 2. On the repo page: **Code → Codespaces → Create codespace on main**.

@@ -1,0 +1,405 @@
+.app {
+  --mobile-bg: #f4f7fb;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 720px);
+  height: 100dvh;
+  min-height: 480px;
+  margin: 0 auto;
+  background: var(--mobile-bg);
+  color: #1d2733;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  background: #fff;
+  border-bottom: 1px solid #e3e7ec;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #6a7788;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.header button,
+.actions button,
+.composer button,
+.quiz button {
+  min-height: 44px;
+  padding: 9px 13px;
+  border: 1px solid #dce3eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #1d2733;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.header button {
+  min-height: 40px;
+  color: #3b6ea5;
+}
+
+.header button:disabled,
+.actions button:disabled,
+.composer button:disabled,
+.quiz button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.controls {
+  display: grid;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e3e7ec;
+}
+
+.gradeTabs {
+  display: flex;
+  gap: 8px;
+}
+
+.gradeTabs button {
+  min-height: 40px;
+  padding: 7px 14px;
+  border: 1px solid #dce3eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #1d2733;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gradeTabs .activeTab {
+  border-color: #3b6ea5;
+  background: #e7eef7;
+  color: #244e79;
+}
+
+.controls label {
+  display: grid;
+  gap: 4px;
+  color: #566578;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.controls select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 36px 8px 11px;
+  border: 1px solid #dce3eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d2733;
+  font: inherit;
+  font-size: 14px;
+}
+
+.progress {
+  padding: 10px 16px;
+  background: #fff;
+}
+
+.progressText {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.progressText strong {
+  font-weight: 600;
+}
+
+.progressTrack {
+  height: 6px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #e3e7ec;
+}
+
+.progressTrack div {
+  height: 100%;
+  border-radius: inherit;
+  background: #2e9e6b;
+}
+
+.progress > p {
+  margin: 6px 0 0;
+  color: #9c6415;
+  font-size: 12px;
+}
+
+.teacherCard {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 16px;
+  background: #fff;
+  border-top: 1px solid #f0f2f5;
+}
+
+.teacherCard :global(.avatar) {
+  width: 66px;
+  height: 74px;
+  flex: none;
+  border-radius: 12px;
+  background: #dfe9f5;
+}
+
+.teacherInfo {
+  min-width: 0;
+}
+
+.teacherInfo h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.teacherInfo > p:last-child {
+  margin: 3px 0 0;
+  color: #6a7788;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  background: #fff;
+  border-bottom: 1px solid #e3e7ec;
+  scrollbar-width: none;
+}
+
+.actions::-webkit-scrollbar {
+  display: none;
+}
+
+.actions button {
+  flex: none;
+}
+
+.actions .primary,
+.composer .primary,
+.quiz .primary {
+  border-color: #3b6ea5;
+  background: #3b6ea5;
+  color: #fff;
+}
+
+.conversation {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 18px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.empty {
+  max-width: 360px;
+  margin: 28px auto;
+  color: #6a7788;
+  text-align: center;
+  font-size: 14px;
+}
+
+.message {
+  max-width: 92%;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #e3e7ec;
+  border-radius: 14px 14px 14px 4px;
+  background: #fff;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.userMessage {
+  margin-left: auto;
+  border-color: #d4e2f2;
+  border-radius: 14px 14px 4px 14px;
+  background: #e7eef7;
+}
+
+.messageRole {
+  display: block;
+  margin-bottom: 4px;
+  color: #6a7788;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.message :global(p) {
+  margin: .35em 0;
+}
+
+.message :global(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.message :global(.diagram) {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sources {
+  margin: 8px 0 0;
+  color: #6a7788;
+  font-size: 11px;
+}
+
+.error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e4a6a0;
+  border-radius: 10px;
+  background: #fff2f0;
+  color: #8d3029;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.quiz {
+  margin: 0 0 14px;
+  padding: 13px;
+  border: 1px solid #e3e7ec;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.quiz h3 {
+  margin: 0;
+}
+
+.question {
+  min-width: 0;
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+}
+
+.question legend {
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.question label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 7px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.question input {
+  margin-top: 4px;
+  accent-color: #3b6ea5;
+}
+
+.correct {
+  background: #e3f4ec;
+}
+
+.incorrect {
+  background: #fbe6e3;
+}
+
+.explanation {
+  margin: 5px 0;
+  color: #566578;
+  font-size: 13px;
+}
+
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px calc(9px + env(safe-area-inset-bottom));
+  border-top: 1px solid #e3e7ec;
+  background: #fff;
+}
+
+.composer input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid #dce3eb;
+  border-radius: 12px;
+  color: #1d2733;
+  font: inherit;
+  font-size: 16px;
+}
+
+.composer input:focus,
+.controls select:focus {
+  outline: 2px solid #8aadd3;
+  outline-offset: 1px;
+}
+
+@media (min-width: 600px) {
+  .controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .gradeTabs {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-height: 700px) {
+  .header {
+    padding-top: 8px;
+    padding-bottom: 7px;
+  }
+
+  .controls {
+    gap: 7px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .progress {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .teacherCard {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .teacherCard :global(.avatar) {
+    width: 54px;
+    height: 60px;
+  }
+}
