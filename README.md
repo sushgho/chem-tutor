@@ -5,7 +5,7 @@ doubts from your course material with page citations, speaks answers aloud throu
 animated avatar, and tracks each student's progress.
 
 ```
-backend/   FastAPI + Postgres/pgvector + Claude  (RAG, lessons, quizzes, progress)
+backend/   FastAPI + Postgres/pgvector + Groq    (RAG, lessons, quizzes, progress)
 frontend/  Next.js chat UI + avatar + speech in/out + KaTeX/mhchem rendering
 ```
 
@@ -19,7 +19,7 @@ docker compose up -d
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env        # put your ANTHROPIC_API_KEY in it
+cp .env.example .env        # put your GROQ_API_KEY in it
 uvicorn app.main:app --reload --port 8000
 ```
 On start-up it creates the tables and seeds the syllabus tree (Class XI units 1-14,
@@ -52,6 +52,8 @@ Use Chrome or Edge for voice input.
   says "the material doesn't cover this" instead of guessing.
 - **Numericals**: the model has a calculator tool, so arithmetic is computed, not guessed.
 - **Chemistry rendering**: equations with `$\ce{...}$` (mhchem) and LaTeX via KaTeX.
+- **Visual explanations**: lessons and relevant doubts can include inline Mermaid
+  flowcharts or concept maps; diagram code is rendered visually and not read aloud.
 - **Progress**: quiz scores update mastery (0-1) and a spaced-repetition due date;
   doubts per topic are counted. `GET /teacher/overview` lists the topics with the
   most doubts and lowest mastery.
@@ -67,7 +69,7 @@ lip-synced from visemes returned by a cloud TTS (Azure, ElevenLabs, Cartesia).
 1. Push this folder to a GitHub repo (keep it private if it will hold your keys' context or notes).
 2. On the repo page: **Code → Codespaces → Create codespace on main**.
 3. Add your key once: GitHub **Settings → Codespaces → Secrets → New secret**, name
-   `ANTHROPIC_API_KEY`, and give it access to this repo (the first launch also prompts for it).
+   `GROQ_API_KEY`, and give it access to this repo.
 4. Wait for setup to finish (installs dependencies and starts the database).
 5. Upload a chapter into `backend/data/` (drag into the Explorer), then in the terminal:
    ```bash

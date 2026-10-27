@@ -4,17 +4,20 @@ import math
 import operator
 import re
 
-import anthropic
+from openai import OpenAI
 
 from .config import settings
 
-_client = None
+_client: OpenAI | None = None
 
 
-def client() -> anthropic.Anthropic:
+def client() -> OpenAI:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key or None)
+        _client = OpenAI(
+            api_key=settings.groq_api_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
     return _client
 
 
@@ -25,6 +28,7 @@ Ground rules
 - If the CONTEXT does not cover the question, say so plainly. You may add one or two cautious sentences of general chemistry if you are sure of them, and suggest the student check their textbook or ask their class teacher.
 - Use the calculator tool for every numerical calculation; never do arithmetic in your head. Show the steps and units.
 - Write formulas in LaTeX: inline $...$, and reactions as $\ce{...}$ (mhchem), for example $\ce{2H2 + O2 -> 2H2O}$.
+- When a simple diagram would clarify a concept, include one Mermaid diagram in a ```mermaid code block. Use a short flowchart or concept map with 3-8 nodes, plain labels, and no HTML. Keep it grounded in CONTEXT and omit it when it would not help.
 - Be encouraging, never condescending. If the student seems confused, try a different analogy rather than repeating yourself.
 - Stay on chemistry and the student's studies.
 """
@@ -40,6 +44,7 @@ def lesson_prompt(topic_title: str, unit_title: str, context: str) -> str:
         f"Teach the topic \"{topic_title}\" (unit: {unit_title}) to the student now. "
         "Structure it as: a one-sentence hook, a clear explanation of the core idea, "
         "one worked example, and finish with ONE short question to check understanding. "
+        "Include a simple visual diagram when it helps explain the topic. "
         "Keep it under 350 words and speakable."
     )
 
@@ -94,16 +99,19 @@ def calculate(expression: str) -> str:
 
 
 TOOLS = [{
-    "name": "calculator",
-    "description": (
-        "Evaluate an arithmetic expression exactly. Supports + - * / ** %, parentheses, "
-        "sqrt, log (natural), log10, exp, sin, cos, tan, and constants pi and e. "
-        "Use scientific notation like 6.022e23."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {"expression": {"type": "string"}},
-        "required": ["expression"],
+    "type": "function",
+    "function": {
+        "name": "calculator",
+        "description": (
+            "Evaluate an arithmetic expression exactly. Supports + - * / ** %, parentheses, "
+            "sqrt, log (natural), log10, exp, sin, cos, tan, and constants pi and e. "
+            "Use scientific notation like 6.022e23."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"expression": {"type": "string"}},
+            "required": ["expression"],
+        },
     },
 }]
 
@@ -112,25 +120,54 @@ def stream_answer(system: str, messages: list[dict], max_tokens: int = 1500):
     """Yield text deltas; transparently runs calculator tool calls."""
     messages = list(messages)
     for _ in range(6):  # bounded tool loop
-        with client().messages.stream(
-            model=settings.model, max_tokens=max_tokens,
-            system=system, messages=messages, tools=TOOLS,
-        ) as stream:
-            for text in stream.text_stream:
-                yield text
-            final = stream.get_final_message()
-        if final.stop_reason != "tool_use":
+        stream = client().chat.completions.create(
+            model=settings.model,
+            max_tokens=max_tokens,
+            messages=[{"role": "system", "content": system}, *messages],
+            tools=TOOLS,
+            stream=True,
+        )
+        tool_calls = {}
+        finish_reason = None
+        for chunk in stream:
+            choice = chunk.choices[0]
+            if choice.delta.content:
+                yield choice.delta.content
+            for call in choice.delta.tool_calls or []:
+                tool_call = tool_calls.setdefault(
+                    call.index,
+                    {"id": "", "name": "", "arguments": ""},
+                )
+                if call.id:
+                    tool_call["id"] = call.id
+                if call.function and call.function.name:
+                    tool_call["name"] += call.function.name
+                if call.function and call.function.arguments:
+                    tool_call["arguments"] += call.function.arguments
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+        if finish_reason != "tool_calls":
             return
-        messages.append({"role": "assistant", "content": final.content})
-        results = []
-        for block in final.content:
-            if block.type == "tool_use":
-                results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": calculate(block.input.get("expression", "")),
-                })
-        messages.append({"role": "user", "content": results})
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": call["id"],
+                    "type": "function",
+                    "function": {"name": call["name"], "arguments": call["arguments"]},
+                }
+                for call in tool_calls.values()
+            ],
+        })
+        for call in tool_calls.values():
+            arguments = json.loads(call["arguments"])
+            result = calculate(arguments.get("expression", ""))
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "content": result,
+            })
         yield " "  # keep the stream alive between tool rounds
 
 
@@ -143,12 +180,15 @@ def make_quiz(grade: str, topic_title: str, context: str, n: int = 3) -> list[di
         '{"q": str, "options": [4 strings], "answer": 0-3 index, "explanation": str}. '
         "Use $...$ LaTeX for formulas."
     )
-    resp = client().messages.create(
-        model=settings.model, max_tokens=2000,
-        system="You write accurate, unambiguous chemistry quiz questions.",
-        messages=[{"role": "user", "content": prompt}],
+    resp = client().chat.completions.create(
+        model=settings.model,
+        max_tokens=2000,
+        messages=[
+            {"role": "system", "content": "You write accurate, unambiguous chemistry quiz questions."},
+            {"role": "user", "content": prompt},
+        ],
     )
-    text = "".join(b.text for b in resp.content if b.type == "text")
+    text = resp.choices[0].message.content or ""
     match = re.search(r"\[.*\]", text, re.S)
     items = json.loads(match.group(0)) if match else []
     return [

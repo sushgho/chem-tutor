@@ -15,25 +15,31 @@ export function cleanForSpeech(s: string): string {
 
 export class Speaker {
   private buffer = "";
+  private lineBuffer = "";
   private pending = 0;
+  private inMermaidDiagram = false;
   muted = false;
 
   constructor(private onSpeaking: (speaking: boolean) => void) {}
 
   feed(chunk: string) {
-    this.buffer += chunk;
-    const parts = this.buffer.split(/(?<=[.!?])\s+/);
-    this.buffer = parts.pop() ?? "";
-    parts.forEach((p) => this.speak(p));
+    this.lineBuffer += chunk;
+    const lines = this.lineBuffer.split("\n");
+    this.lineBuffer = lines.pop() ?? "";
+    lines.forEach((line) => this.processLine(line));
   }
 
   flush() {
+    if (this.lineBuffer) this.processLine(this.lineBuffer);
+    this.lineBuffer = "";
     if (this.buffer.trim()) this.speak(this.buffer);
     this.buffer = "";
   }
 
   stop() {
     this.buffer = "";
+    this.lineBuffer = "";
+    this.inMermaidDiagram = false;
     this.pending = 0;
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     this.onSpeaking(false);
@@ -53,6 +59,27 @@ export class Speaker {
     u.onerror = done;
     this.pending += 1;
     window.speechSynthesis.speak(u);
+  }
+
+  private processLine(line: string) {
+    const fence = line.match(/^\s*```(.*)$/);
+    if (fence) {
+      const language = fence[1].trim().toLowerCase();
+      if (this.inMermaidDiagram) {
+        this.inMermaidDiagram = false;
+      } else if (language === "mermaid") {
+        this.inMermaidDiagram = true;
+      } else {
+        this.buffer += `${line}\n`;
+      }
+      return;
+    }
+    if (!this.inMermaidDiagram) {
+      this.buffer += `${line}\n`;
+      const parts = this.buffer.split(/(?<=[.!?])\s+/);
+      this.buffer = parts.pop() ?? "";
+      parts.forEach((part) => this.speak(part));
+    }
   }
 }
 
