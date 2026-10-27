@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Avatar from "@/components/Avatar";
+import Image from "next/image";
 import Markdown from "@/components/Markdown";
 import { getJSON, postJSON, streamPost, type Source } from "@/lib/api";
 import { listenOnce, Speaker } from "@/lib/speech";
@@ -310,7 +310,14 @@ export default function MobileTeacherApp() {
       </section>
 
       <section className={styles.teacherCard}>
-        <Avatar speaking={speaking} listening={listening} />
+        <Image
+          className={styles.teacherPortrait}
+          src="/images/teacher-asha.png"
+          alt="Dr. Asha, your chemistry teacher, in a classroom"
+          width={160}
+          height={160}
+          priority
+        />
         <div className={styles.teacherInfo}>
           <p className={styles.eyebrow}>{listening ? "LISTENING…" : speaking ? "SPEAKING…" : "YOUR CHEMISTRY TEACHER"}</p>
           <h2>{topic?.title ?? "Choose a topic to begin"}</h2>

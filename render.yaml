@@ -2,38 +2,17 @@ services:
   - type: web
     name: chem-tutor-api
     runtime: python
-    plan: 1c-2g
+    plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements-free.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
       - key: DATABASE_URL
-        fromDatabase:
-          name: chem-tutor-db
-          property: connectionString
+        sync: false
+      - key: EMBEDDING_MODE
+        value: keyword
       - key: GROQ_API_KEY
         sync: false
-      - key: CORS_ORIGINS
-        value: https://${{services.chem-tutor-web.host}}
-
-  - type: web
-    name: chem-tutor-web
-    runtime: node
-    plan: 0.5c-512mb
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    startCommand: npm start -- --hostname 0.0.0.0 --port $PORT
-    envVars:
-      - key: NODE_VERSION
-        value: 22.14.0
-      - key: BACKEND_URL
-        value: https://${{services.chem-tutor-api.host}}
-
-databases:
-  - name: chem-tutor-db
-    databaseName: tutor
-    user: tutor
-    postgresMajorVersion: "16"

@@ -72,26 +72,33 @@ The offline cache only saves the mobile page and its Next.js static assets; less
 chat, quizzes, and progress still need an internet connection and the backend.
 
 ### Make it public on Render
-The root `render.yaml` defines the frontend, FastAPI backend, and PostgreSQL database.
-To create the public app:
+The root `render.yaml` defines the FastAPI backend with lightweight keyword retrieval.
+Host the Next.js frontend on Vercel's Hobby plan and use Neon Free for PostgreSQL.
+This keeps only one service on Render's free compute quota. To create a prototype:
 1. Push the project to a GitHub repository that your Render account can access. The
    Render Blueprint must be at the repository root.
 2. In Render, choose **New → Blueprint**, connect the repository, and review the
-   resources and prices before applying the Blueprint. The backend uses a 2 GB plan to
-   run the sentence-transformers embedding model; the frontend uses a smaller web
-   service. The database plan and its price are selected in Render.
-3. During Blueprint setup, provide `GROQ_API_KEY` as a secret environment variable in
-   Render. Do not put the key in this file, in `NEXT_PUBLIC_*`, or in GitHub.
-4. Wait for the database and both services to finish deploying. The frontend's public
-   `onrender.com` URL is the link anyone can use; open `<frontend-url>/mobile`.
-5. Test the public mobile page, curriculum, lessons, and quizzes. Add teaching material
-   to the hosted database using the backend ingestion command before expecting
-   material-based lessons or quizzes to work.
+   backend before applying the Blueprint. Create a free PostgreSQL project at
+   [Neon](https://neon.tech/) and copy its pooled connection string.
+3. During Render Blueprint setup, provide `DATABASE_URL` and `GROQ_API_KEY` as secret
+   environment variables. Do not put either value in this file, in `NEXT_PUBLIC_*`, or
+   in GitHub.
+4. Import the same GitHub repository into [Vercel](https://vercel.com/), set the
+   project root to `frontend`, and add `BACKEND_URL` as a server-side environment
+   variable with the Render backend's public HTTPS URL. Deploy the site; its Vercel
+   URL is the link to share, with `/mobile` at the end.
+5. Ingest licensed teaching material into Neon. From `backend/`, install
+   `requirements-free.txt`, set `EMBEDDING_MODE=keyword` and `DATABASE_URL` to the same
+   Neon connection string, then run `python -m app.ingest <file> --grade XI --unit 1`.
+6. Test `<vercel-url>/mobile`, curriculum, lessons, and quizzes.
 
-The app currently allows anonymous students and has no authentication or request
-throttling. Before widely sharing a public link, monitor model/database usage and set
-provider-level spending limits or add abuse protections. Student progress and
-conversation history are stored in the database; publish an appropriate privacy notice.
+This is a hobby prototype, not a production hosting guarantee. Render's free backend
+sleeps after inactivity and can take about a minute to wake. Render's free plan has
+monthly usage limits, and Neon Free has usage limits too. Keyword retrieval is less
+semantically capable than the default sentence-transformer mode. The app allows
+anonymous students and has no request throttling, so monitor Groq usage and add abuse
+protections before widely sharing it. Student progress and conversation history are
+stored in the database; publish an appropriate privacy notice.
 
 To publish the same experience on the web and Google Play:
 1. Deploy the frontend and backend to production, using a stable HTTPS domain such as

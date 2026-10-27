@@ -11,11 +11,10 @@ import argparse
 import pathlib
 import re
 
-import numpy as np
 from pypdf import PdfReader
 
 from . import db
-from .embeddings import embed_docs
+from .embeddings import embed_docs, similarity
 
 CHUNK_CHARS = 900
 OVERLAP = 150
@@ -84,7 +83,10 @@ def main():
     vecs = embed_docs([r[1] for r in rows])
     with db.pool.connection() as c:
         for (page, chunk), vec in zip(rows, vecs):
-            topic_id = args.topic or topics[int(np.argmax(topic_vecs @ vec))]["id"]
+            topic_id = args.topic or max(
+                zip(topics, topic_vecs),
+                key=lambda item: similarity(item[1], vec),
+            )[0]["id"]
             c.execute(
                 """INSERT INTO chunks (grade, unit_no, topic_id, source, page, content, embedding)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)""",
