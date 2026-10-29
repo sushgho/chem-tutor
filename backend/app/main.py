@@ -86,8 +86,9 @@ class StudyChatIn(BaseModel):
     subject: Literal["maths", "physics", "chemistry", "biology"]
     grade: Literal["XI", "XII"] = "XI"
     topic_id: str | None = None
+    topic_title: str | None = Field(default=None, max_length=160)
     question: str = Field(min_length=1, max_length=4000)
-    mode: Literal["chat", "summary", "important_questions", "neet", "jee"] = "chat"
+    mode: Literal["chat", "lesson", "check", "summary", "important_questions", "neet", "jee"] = "chat"
     history: list[StudyMessage] = Field(default_factory=list, max_length=12)
 
 
@@ -181,6 +182,8 @@ def study_chat(
         query = f"NEET-style practice questions, answers, and explanations. {body.question}"
     elif body.mode == "jee":
         query = f"JEE-style practice questions, worked answers, and explanations. {body.question}"
+    if body.topic_title:
+        query = f"{body.topic_title} {query}"
 
     if body.mode in ("summary", "important_questions", "neet", "jee"):
         chunks = documents.retrieve_all(body.student_id, key, body.subject)
@@ -188,7 +191,8 @@ def study_chat(
         chunks = documents.retrieve(body.student_id, key, body.subject, query)
     if body.subject == "chemistry":
         if topic:
-            query = f"{topic['title']} {query}"
+            if body.topic_title != topic["title"]:
+                query = f"{topic['title']} {query}"
         course_chunks = rag.retrieve(
             query,
             body.grade,
@@ -212,7 +216,7 @@ def study_chat(
             rag.format_context(chunks),
             body.subject,
             body.mode,
-            topic["title"] if topic else None,
+            body.topic_title or (topic["title"] if topic else None),
         ),
     }]
     kind = f"study:{body.subject}"

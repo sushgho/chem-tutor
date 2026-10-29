@@ -92,6 +92,33 @@ class StudyApiTests(unittest.TestCase):
         retrieve.assert_not_called()
         retrieve_all.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology")
 
+    def test_named_topic_lesson_retrieves_matching_material_for_any_subject(self):
+        request = {
+            "student_id": 8,
+            "subject": "physics",
+            "grade": "XI",
+            "topic_title": "Laws of motion",
+            "question": "Teach this chapter with an example.",
+            "mode": "lesson",
+        }
+        with (
+            patch.object(main.documents, "retrieve", return_value=[]) as retrieve,
+            patch.object(main.progress, "log_message"),
+            patch.object(main.llm, "stream_answer", return_value=iter(["Lesson and question."])) as stream_answer,
+        ):
+            response = self.client.post(
+                "/study/chat",
+                json=request,
+                headers={"X-Study-Library-Key": LIBRARY_KEY},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        retrieve.assert_called_once_with(
+            8, UUID(LIBRARY_KEY), "physics", "Laws of motion Teach this chapter with an example."
+        )
+        self.assertIn("Laws of motion", stream_answer.call_args.args[1][-1]["content"])
+        self.assertIn("exactly one short question", stream_answer.call_args.args[1][-1]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

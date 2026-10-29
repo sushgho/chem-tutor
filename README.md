@@ -79,6 +79,13 @@ browser keeps each study library separate; clearing this browser's site data als
 the key needed to access that library. Scanned PDFs require OCR before upload. The
 upload limit is 12 MB, 100 PDF pages, and 300,000 extracted characters.
 
+Learners can select a Chemistry syllabus topic or enter a chapter/topic for Maths,
+Physics, or Biology, then start a short lesson or a one-question understanding check.
+DIVA waits for the learner's response and gives feedback in the conversation. The
+non-Chemistry subjects use the selected topic and uploaded notes as context; they do not
+yet have built-in chapter lists, so learners can type the chapter name or upload their
+syllabus/notes.
+
 The tutor uses Groq's Llama 3.3 70B model by default (`MODEL` can override it). NEET/JEE
 buttons create clearly labeled practice questions, not claims about exact questions
 asked in past exams. For answers to an actual past question, upload the paper first so

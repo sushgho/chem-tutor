@@ -8,7 +8,7 @@ import { listenOnce, Speaker } from "@/lib/speech";
 import styles from "./mobile-teacher-app.module.css";
 
 type Subject = "maths" | "physics" | "chemistry" | "biology";
-type StudyMode = "chat" | "summary" | "important_questions" | "neet" | "jee";
+type StudyMode = "chat" | "lesson" | "check" | "summary" | "important_questions" | "neet" | "jee";
 type StudyDocument = { id: number; filename: string; created_at: string };
 type Topic = { id: string; title: string };
 type Unit = { unit_no: number; title: string; periods: number; topics: Topic[] };
@@ -28,6 +28,7 @@ export default function MobileTeacherApp() {
   const [grade, setGrade] = useState("XI");
   const [unitNo, setUnitNo] = useState<number | null>(null);
   const [topic, setTopic] = useState<{ id: string; title: string; unit: string } | null>(null);
+  const [chapterTopic, setChapterTopic] = useState("");
   const [studentId, setStudentId] = useState<number | null>(null);
   const [libraryKey, setLibraryKey] = useState("");
   const [prog, setProg] = useState<Prog | null>(null);
@@ -50,6 +51,7 @@ export default function MobileTeacherApp() {
   const selectedUnit = units.find((unit) => unit.unit_no === unitNo) ?? null;
   const selectedTopic = selectedUnit?.topics.find((item) => item.id === topic?.id) ?? null;
   const subjectName = subject === "maths" ? "Maths" : subject[0].toUpperCase() + subject.slice(1);
+  const activeTopicTitle = subject === "chemistry" ? topic?.title ?? "" : chapterTopic.trim();
 
   useEffect(() => {
     const activeSpeaker = new Speaker(setSpeaking);
@@ -169,6 +171,7 @@ export default function MobileTeacherApp() {
     speaker.current?.stop();
     setSubject(nextSubject);
     setTopic(null);
+    setChapterTopic("");
     setMsgs([]);
     setQuiz(null);
     setBusy(false);
@@ -221,13 +224,38 @@ export default function MobileTeacherApp() {
   }
 
   function teach() {
-    if (!topic || !studentId || busy) return;
-    setMsgs([]);
-    setQuiz(null);
-    void run("/lesson", { student_id: studentId, topic_id: topic.id });
+    if (!studentId || busy) return;
+    if (subject === "chemistry" && topic) {
+      setMsgs([]);
+      setQuiz(null);
+      void run("/lesson", { student_id: studentId, topic_id: topic.id });
+      return;
+    }
+    if (!activeTopicTitle) {
+      setError("Choose or enter a chapter or topic for DIVA to teach.");
+      return;
+    }
+    ask(
+      `Teach me the chapter or topic "${activeTopicTitle}" with a clear explanation and an example, then ask me one question and wait for my answer.`,
+      "lesson",
+      activeTopicTitle,
+    );
   }
 
-  function ask(question: string, mode: StudyMode = "chat") {
+  function startStudyCheck() {
+    if (!studentId || busy) return;
+    if (subject === "chemistry" && topic) {
+      void startQuiz();
+      return;
+    }
+    if (!activeTopicTitle) {
+      setError("Choose or enter a chapter or topic for DIVA to check.");
+      return;
+    }
+    ask(`Ask me one short question about "${activeTopicTitle}" without giving me the answer.`, "check", activeTopicTitle);
+  }
+
+  function ask(question: string, mode: StudyMode = "chat", topicTitle = activeTopicTitle) {
     if (!studentId || !question.trim() || busy) return;
     const history = msgs.filter((message) => message.content).slice(-12)
       .map(({ role, content }) => ({ role, content }));
@@ -239,6 +267,7 @@ export default function MobileTeacherApp() {
       subject,
       grade,
       topic_id: subject === "chemistry" ? topic?.id ?? null : null,
+      topic_title: topicTitle || null,
       question: question.trim(),
       mode,
       history,
@@ -433,6 +462,23 @@ export default function MobileTeacherApp() {
           </label>
         </section>
       )}
+      {subject !== "chemistry" && (
+        <section className={styles.topicEntry} aria-label={`Choose a ${subjectName} chapter or topic`}>
+          <label>
+            <span>Chapter or topic</span>
+            <input
+              value={chapterTopic}
+              onChange={(event) => setChapterTopic(event.target.value)}
+              placeholder={
+                subject === "maths" ? "e.g., Quadratic equations" :
+                  subject === "physics" ? "e.g., Laws of motion" : "e.g., Cell structure"
+              }
+              maxLength={160}
+              aria-label={`${subjectName} chapter or topic`}
+            />
+          </label>
+        </section>
+      )}
 
       {subject === "chemistry" && (
         <section className={styles.progress} aria-label="Learning progress">
@@ -458,8 +504,8 @@ export default function MobileTeacherApp() {
         />
         <div className={styles.teacherInfo}>
           <p className={styles.eyebrow}>{listening ? "LISTENING…" : speaking ? "SPEAKING…" : `${subjectName.toUpperCase()} TUTOR`}</p>
-          <h2>{topic?.title ?? `Ready to study ${subjectName}`}</h2>
-          <p>{topic?.unit ?? "Ask a question, upload notes, or practise for NEET/JEE."}</p>
+          <h2>{topic?.title ?? (chapterTopic.trim() || `Ready to study ${subjectName}`)}</h2>
+          <p>{topic?.unit ?? (chapterTopic.trim() ? "Chapter or topic" : "Ask a question, upload notes, or practise for NEET/JEE.")}</p>
         </div>
       </section>
 
@@ -475,9 +521,15 @@ export default function MobileTeacherApp() {
         {subject === "chemistry" && (
           <>
             <button className={styles.primary} onClick={teach} disabled={!topic || !studentId || busy}>Teach topic</button>
-            <button onClick={() => void startQuiz()} disabled={!topic || busy}>Quick check</button>
+            <button onClick={startStudyCheck} disabled={!topic || busy}>Quick check</button>
             <button onClick={() => void mark("mastered")} disabled={!topic || !studentId}>I understood</button>
             <button onClick={() => void mark("needs_revision")} disabled={!topic || !studentId}>Review later</button>
+          </>
+        )}
+        {subject !== "chemistry" && (
+          <>
+            <button className={styles.primary} onClick={teach} disabled={!activeTopicTitle || !studentId || busy}>Teach topic</button>
+            <button onClick={startStudyCheck} disabled={!activeTopicTitle || !studentId || busy}>Quick check</button>
           </>
         )}
         {speaking && <button onClick={() => speaker.current?.stop()}>Stop voice</button>}
@@ -519,7 +571,12 @@ export default function MobileTeacherApp() {
       <section className={styles.conversation} aria-label="Tutor conversation" aria-live="polite">
         {error && <div className={styles.error} role="alert">{error}</div>}
         {!msgs.length && !quiz && (
-          <p className={styles.empty}>Ask DIVA anything about {subjectName}, or upload your notes and try a summary or exam practice set.</p>
+          <p className={styles.empty}>
+            {subject === "chemistry"
+              ? `Choose a chapter topic to start a lesson, or ask DIVA anything about ${subjectName}.`
+              : `Enter a chapter or topic, then choose Teach topic or Quick check. You can also ask DIVA anything about ${subjectName}.`}
+            {" Upload notes for material-specific explanations and citations."}
+          </p>
         )}
         {msgs.map((message, index) => (
           <article key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : ""}`}>
