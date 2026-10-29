@@ -70,6 +70,28 @@ class StudyApiTests(unittest.TestCase):
         self.assertEqual(response.text, "Photosynthesis uses light.")
         retrieve.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology", "Explain photosynthesis")
 
+    def test_exam_practice_uses_uploaded_material_instead_of_generic_search(self):
+        request = {
+            "student_id": 8,
+            "subject": "biology",
+            "question": "Create a practice set for my selected subject.",
+            "mode": "neet",
+        }
+        with (
+            patch.object(main.documents, "retrieve", return_value=[]) as retrieve,
+            patch.object(main.documents, "retrieve_all", return_value=[]) as retrieve_all,
+            patch.object(main.progress, "log_message"),
+            patch.object(main.llm, "stream_answer", return_value=iter(["Practice set."])),
+        ):
+            response = self.client.post(
+                "/study/chat",
+                json=request,
+                headers={"X-Study-Library-Key": LIBRARY_KEY},
+            )
+        self.assertEqual(response.status_code, 200)
+        retrieve.assert_not_called()
+        retrieve_all.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology")
+
 
 if __name__ == "__main__":
     unittest.main()

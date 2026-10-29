@@ -182,11 +182,13 @@ def study_chat(
     elif body.mode == "jee":
         query = f"JEE-style practice questions, worked answers, and explanations. {body.question}"
 
-    if body.mode == "summary":
+    if body.mode in ("summary", "important_questions", "neet", "jee"):
         chunks = documents.retrieve_all(body.student_id, key, body.subject)
     else:
         chunks = documents.retrieve(body.student_id, key, body.subject, query)
     if body.subject == "chemistry":
+        if topic:
+            query = f"{topic['title']} {query}"
         course_chunks = rag.retrieve(
             query,
             body.grade,
