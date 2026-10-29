@@ -1,13 +1,14 @@
 import json
 import urllib.parse
 from contextlib import asynccontextmanager
+from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from . import db, llm, progress, rag
+from . import db, documents, llm, progress, rag
 from .config import settings
 from .curriculum import tree
 
@@ -75,6 +76,21 @@ class StatusIn(BaseModel):
     status: str
 
 
+class StudyMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=8000)
+
+
+class StudyChatIn(BaseModel):
+    student_id: int = Field(gt=0)
+    subject: Literal["maths", "physics", "chemistry", "biology"]
+    grade: Literal["XI", "XII"] = "XI"
+    topic_id: str | None = None
+    question: str = Field(min_length=1, max_length=4000)
+    mode: Literal["chat", "summary", "important_questions", "neet", "jee"] = "chat"
+    history: list[StudyMessage] = Field(default_factory=list, max_length=12)
+
+
 # ---------- routes ----------
 @app.get("/health")
 def health():
@@ -104,6 +120,116 @@ def student_status(student_id: int, body: StatusIn):
     except ValueError:
         raise HTTPException(400, "invalid status")
     return {"ok": True}
+
+
+@app.get("/students/{student_id}/documents")
+def student_documents(
+    student_id: int,
+    subject: str,
+    library_key: str = Header(..., alias="X-Study-Library-Key"),
+):
+    if subject not in documents.SUBJECTS:
+        raise HTTPException(400, "unknown subject")
+    key = documents.validate_library_key(library_key)
+    return {"documents": documents.list_documents(student_id, key, subject)}
+
+
+@app.post("/students/{student_id}/documents")
+def upload_student_document(
+    student_id: int,
+    subject: str = Form(...),
+    file: UploadFile = File(...),
+    library_key: str = Header(..., alias="X-Study-Library-Key"),
+):
+    try:
+        key = documents.validate_library_key(library_key)
+        return documents.create_document(student_id, key, subject, file.filename or "", file.file)
+    except documents.DocumentError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+
+
+@app.delete("/students/{student_id}/documents/{document_id}")
+def remove_student_document(
+    student_id: int,
+    document_id: int,
+    library_key: str = Header(..., alias="X-Study-Library-Key"),
+):
+    key = documents.validate_library_key(library_key)
+    if not documents.delete_document(student_id, key, document_id):
+        raise HTTPException(404, "document not found")
+    return {"ok": True}
+
+
+@app.post("/study/chat")
+def study_chat(
+    body: StudyChatIn,
+    library_key: str = Header(..., alias="X-Study-Library-Key"),
+):
+    key = documents.validate_library_key(library_key)
+    topic = _topic_or_404(body.topic_id) if body.topic_id else None
+    if topic and body.subject != "chemistry":
+        raise HTTPException(400, "curriculum topics are currently available for Chemistry.")
+    if topic and topic["grade"] != body.grade:
+        raise HTTPException(400, "the selected topic does not match the chosen class.")
+
+    query = body.question
+    if body.mode == "summary":
+        query = f"Summarize the key ideas, definitions, and equations in the study material. {body.question}"
+    elif body.mode == "important_questions":
+        query = f"High-yield revision questions and answers. {body.question}"
+    elif body.mode == "neet":
+        query = f"NEET-style practice questions, answers, and explanations. {body.question}"
+    elif body.mode == "jee":
+        query = f"JEE-style practice questions, worked answers, and explanations. {body.question}"
+
+    if body.mode == "summary":
+        chunks = documents.retrieve_all(body.student_id, key, body.subject)
+    else:
+        chunks = documents.retrieve(body.student_id, key, body.subject, query)
+    if body.subject == "chemistry":
+        course_chunks = rag.retrieve(
+            query,
+            body.grade,
+            topic["unit_no"] if topic else None,
+            topic["id"] if topic else None,
+            k=5,
+            min_hits=3,
+            start="topic" if topic else "unit",
+        )
+        chunks.extend(course_chunks)
+    chunks = chunks[:8]
+    history = [
+        {"role": message.role, "content": message.content}
+        for message in body.history[-8:]
+        if message.content.strip()
+    ]
+    messages = history + [{
+        "role": "user",
+        "content": llm.study_prompt(
+            body.question,
+            rag.format_context(chunks),
+            body.subject,
+            body.mode,
+            topic["title"] if topic else None,
+        ),
+    }]
+    kind = f"study:{body.subject}"
+    progress.log_message(body.student_id, topic["id"] if topic else None, kind, "user", body.question)
+
+    def gen():
+        out = []
+        for piece in llm.stream_answer(llm.study_teacher_system(body.subject, body.grade), messages):
+            out.append(piece)
+            yield piece
+        progress.log_message(
+            body.student_id,
+            topic["id"] if topic else None,
+            kind,
+            "assistant",
+            "".join(out),
+        )
+
+    return _stream(gen(), chunks)
 
 
 @app.post("/lesson")

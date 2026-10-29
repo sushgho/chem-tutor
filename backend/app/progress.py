@@ -105,7 +105,7 @@ def get_progress(student_id: int) -> dict:
     }
 
 
-def log_message(student_id: int, topic_id: str, kind: str, role: str, content: str):
+def log_message(student_id: int, topic_id: str | None, kind: str, role: str, content: str):
     with pool.connection() as c:
         c.execute(
             "INSERT INTO messages (student_id, topic_id, kind, role, content) VALUES (%s,%s,%s,%s,%s)",

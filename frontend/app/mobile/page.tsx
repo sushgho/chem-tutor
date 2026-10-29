@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Markdown from "@/components/Markdown";
-import { getJSON, postJSON, streamPost, type Source } from "@/lib/api";
+import { deleteJSON, getJSON, postJSON, streamPost, uploadFile, type Source } from "@/lib/api";
 import { listenOnce, Speaker } from "@/lib/speech";
 import styles from "./mobile-teacher-app.module.css";
 
+type Subject = "maths" | "physics" | "chemistry" | "biology";
+type StudyMode = "chat" | "summary" | "important_questions" | "neet" | "jee";
+type StudyDocument = { id: number; filename: string; created_at: string };
 type Topic = { id: string; title: string };
 type Unit = { unit_no: number; title: string; periods: number; topics: Topic[] };
 type Tree = Record<string, Unit[]>;
@@ -21,10 +24,12 @@ type QuizState = { items: QuizItem[]; picks: (number | null)[]; done: boolean };
 
 export default function MobileTeacherApp() {
   const [tree, setTree] = useState<Tree>({});
+  const [subject, setSubject] = useState<Subject>("chemistry");
   const [grade, setGrade] = useState("XI");
   const [unitNo, setUnitNo] = useState<number | null>(null);
   const [topic, setTopic] = useState<{ id: string; title: string; unit: string } | null>(null);
   const [studentId, setStudentId] = useState<number | null>(null);
+  const [libraryKey, setLibraryKey] = useState("");
   const [prog, setProg] = useState<Prog | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -33,14 +38,18 @@ export default function MobileTeacherApp() {
   const [listening, setListening] = useState(false);
   const [muted, setMuted] = useState(false);
   const [quiz, setQuiz] = useState<QuizState | null>(null);
+  const [documents, setDocuments] = useState<StudyDocument[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const speaker = useRef<Speaker | null>(null);
   const abort = useRef<AbortController | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const units = tree[grade] || [];
   const selectedUnit = units.find((unit) => unit.unit_no === unitNo) ?? null;
   const selectedTopic = selectedUnit?.topics.find((item) => item.id === topic?.id) ?? null;
+  const subjectName = subject === "maths" ? "Maths" : subject[0].toUpperCase() + subject.slice(1);
 
   useEffect(() => {
     const activeSpeaker = new Speaker(setSpeaking);
@@ -70,6 +79,9 @@ export default function MobileTeacherApp() {
             : (await postJSON<{ id: number }>("/students", { name: "Student" })).id;
         if (!active) return;
         localStorage.setItem("studentId", String(id));
+        const key = localStorage.getItem("studyLibraryKey") || crypto.randomUUID();
+        localStorage.setItem("studyLibraryKey", key);
+        setLibraryKey(key);
         setStudentId(id);
       } catch {
         if (active) setError("Can't reach the tutor service. Check your internet connection and try again.");
@@ -93,6 +105,30 @@ export default function MobileTeacherApp() {
   useEffect(() => {
     void refreshProgress();
   }, [refreshProgress]);
+
+  const refreshDocuments = useCallback(async (isActive: () => boolean = () => true) => {
+    if (!studentId) return;
+    try {
+      const { documents: items } = await getJSON<{ documents: StudyDocument[] }>(
+        `/students/${studentId}/documents?subject=${subject}`,
+        { "X-Study-Library-Key": libraryKey },
+      );
+      if (isActive()) setDocuments(items);
+    } catch (e) {
+      if (isActive()) {
+        setError(e instanceof Error ? e.message : "Couldn't load your uploaded study materials.");
+      }
+    }
+  }, [studentId, subject, libraryKey]);
+
+  useEffect(() => {
+    let active = true;
+    setDocuments([]);
+    void refreshDocuments(() => active);
+    return () => {
+      active = false;
+    };
+  }, [refreshDocuments]);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -128,7 +164,18 @@ export default function MobileTeacherApp() {
     setError("");
   }
 
-  async function run(path: string, body: unknown) {
+  function chooseSubject(nextSubject: Subject) {
+    abort.current?.abort();
+    speaker.current?.stop();
+    setSubject(nextSubject);
+    setTopic(null);
+    setMsgs([]);
+    setQuiz(null);
+    setBusy(false);
+    setError("");
+  }
+
+  async function run(path: string, body: unknown, studyKey?: string) {
     setBusy(true);
     setError("");
     speaker.current?.stop();
@@ -157,6 +204,7 @@ export default function MobileTeacherApp() {
           });
         },
         controller.signal,
+        studyKey ? { "X-Study-Library-Key": studyKey } : undefined,
       );
       speaker.current?.flush();
     } catch (e) {
@@ -179,12 +227,66 @@ export default function MobileTeacherApp() {
     void run("/lesson", { student_id: studentId, topic_id: topic.id });
   }
 
-  function ask(question: string) {
-    if (!topic || !studentId || !question.trim() || busy) return;
-    const history = msgs.filter((message) => message.content).map(({ role, content }) => ({ role, content }));
+  function ask(question: string, mode: StudyMode = "chat") {
+    if (!studentId || !question.trim() || busy) return;
+    const history = msgs.filter((message) => message.content).slice(-12)
+      .map(({ role, content }) => ({ role, content }));
+    setQuiz(null);
     setMsgs((current) => [...current, { role: "user", content: question.trim() }]);
     setInput("");
-    void run("/ask", { student_id: studentId, topic_id: topic.id, question: question.trim(), history });
+    void run("/study/chat", {
+      student_id: studentId,
+      subject,
+      grade,
+      topic_id: subject === "chemistry" ? topic?.id ?? null : null,
+      question: question.trim(),
+      mode,
+      history,
+    }, libraryKey);
+  }
+
+  function runStudyMode(mode: Exclude<StudyMode, "chat">, prompt: string) {
+    ask(prompt, mode);
+  }
+
+  async function uploadStudyFile(file?: File) {
+    if (!file || !studentId || uploading) return;
+    if (file.size > 12 * 1024 * 1024) {
+      setError("Files must be 12 MB or smaller.");
+      if (fileInput.current) fileInput.current.value = "";
+      return;
+    }
+    setUploading(true);
+    setError("");
+    const form = new FormData();
+    form.append("subject", subject);
+    form.append("file", file);
+    try {
+      const saved = await uploadFile<StudyDocument & { chunks: number }>(
+        `/students/${studentId}/documents`,
+        form,
+        { "X-Study-Library-Key": libraryKey },
+      );
+      setDocuments((current) => [saved, ...current]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't process this document.");
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
+
+  async function removeStudyFile(documentId: number) {
+    if (!studentId) return;
+    try {
+      await deleteJSON(
+        `/students/${studentId}/documents/${documentId}`,
+        { "X-Study-Library-Key": libraryKey },
+      );
+      setDocuments((current) => current.filter((item) => item.id !== documentId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't delete this study document.");
+    }
   }
 
   async function startQuiz() {
@@ -229,7 +331,7 @@ export default function MobileTeacherApp() {
   }
 
   function startListening() {
-    if (!topic || busy || listening) return;
+    if (!studentId || busy || listening) return;
     speaker.current?.stop();
     setListening(true);
     listenOnce(ask, () => setListening(false));
@@ -249,7 +351,7 @@ export default function MobileTeacherApp() {
     <main className={styles.app}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>DIVA · CLASS XI–XII</p>
+          <p className={styles.eyebrow}>DIVA · MULTI-SUBJECT TUTOR</p>
           <h1>Mobile Teacher App</h1>
         </div>
         <button className={styles.soundButton} onClick={() => setMuted((value) => !value)} aria-label={muted ? "Turn voice on" : "Mute voice"}>
@@ -257,12 +359,31 @@ export default function MobileTeacherApp() {
         </button>
       </header>
 
-      <section className={styles.controls} aria-label="Choose a chemistry topic">
+      <section className={styles.subjectSection} aria-label="Choose a subject">
+        <div className={styles.subjectTabs} role="group" aria-label="Subjects">
+          {([
+            ["maths", "Maths"],
+            ["physics", "Physics"],
+            ["chemistry", "Chemistry"],
+            ["biology", "Biology"],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              className={subject === id ? styles.activeSubject : ""}
+              aria-pressed={subject === id}
+              disabled={uploading}
+              onClick={() => chooseSubject(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className={styles.gradeTabs} role="group" aria-label="Choose class">
           {Object.keys(tree).map((className) => (
             <button
               key={className}
               className={grade === className ? styles.activeTab : ""}
+              aria-pressed={grade === className}
               onClick={() => {
                 setGrade(className);
                 setUnitNo(null);
@@ -273,80 +394,132 @@ export default function MobileTeacherApp() {
             </button>
           ))}
         </div>
-        <label>
-          <span>Unit</span>
-          <select
-            value={unitNo ?? ""}
-            onChange={(event) => {
-              setUnitNo(Number(event.target.value));
-              chooseTopic(undefined);
-            }}
-            disabled={!units.length}
-          >
-            {!units.length && <option value="">Loading units…</option>}
-            {units.map((unit) => (
-              <option key={unit.unit_no} value={unit.unit_no}>
-                {unit.unit_no}. {unit.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Topic</span>
-          <select
-            value={selectedTopic?.id ?? ""}
-            onChange={(event) => chooseTopic(selectedUnit?.topics.find((item) => item.id === event.target.value))}
-            disabled={!selectedUnit}
-          >
-            <option value="">Choose a topic</option>
-            {selectedUnit?.topics.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
       </section>
 
-      <section className={styles.progress} aria-label="Learning progress">
-        <div className={styles.progressText}>
-          <span>Class {grade} progress</span>
-          <strong>{progress.mastered}/{progress.total} topics · {progress.percent}%</strong>
-        </div>
-        <div className={styles.progressTrack}>
-          <div style={{ width: `${progress.percent}%` }} />
-        </div>
-        {progress.due > 0 && <p>{progress.due} topic(s) due for revision</p>}
-      </section>
+      {subject === "chemistry" && (
+        <section className={styles.controls} aria-label="Choose a chemistry topic">
+          <label>
+            <span>Unit</span>
+            <select
+              value={unitNo ?? ""}
+              onChange={(event) => {
+                setUnitNo(Number(event.target.value));
+                chooseTopic(undefined);
+              }}
+              disabled={!units.length}
+            >
+              {!units.length && <option value="">Loading units…</option>}
+              {units.map((unit) => (
+                <option key={unit.unit_no} value={unit.unit_no}>
+                  {unit.unit_no}. {unit.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Topic (optional)</span>
+            <select
+              value={selectedTopic?.id ?? ""}
+              onChange={(event) => chooseTopic(selectedUnit?.topics.find((item) => item.id === event.target.value))}
+              disabled={!selectedUnit}
+            >
+              <option value="">Ask across Chemistry</option>
+              {selectedUnit?.topics.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+      )}
+
+      {subject === "chemistry" && (
+        <section className={styles.progress} aria-label="Learning progress">
+          <div className={styles.progressText}>
+            <span>Class {grade} progress</span>
+            <strong>{progress.mastered}/{progress.total} topics · {progress.percent}%</strong>
+          </div>
+          <div className={styles.progressTrack}>
+            <div style={{ width: `${progress.percent}%` }} />
+          </div>
+          {progress.due > 0 && <p>{progress.due} topic(s) due for revision</p>}
+        </section>
+      )}
 
       <section className={styles.teacherCard}>
         <Image
           className={styles.teacherPortrait}
           src="/images/teacher-asha.png"
-          alt="DIVA, your chemistry teacher, in a classroom"
+          alt="DIVA, your science teacher, in a classroom"
           width={160}
           height={160}
           priority
         />
         <div className={styles.teacherInfo}>
-          <p className={styles.eyebrow}>{listening ? "LISTENING…" : speaking ? "SPEAKING…" : "YOUR CHEMISTRY TEACHER"}</p>
-          <h2>{topic?.title ?? "Choose a topic to begin"}</h2>
-          <p>{topic?.unit ?? "Learn a lesson, ask a doubt, or take a quick check."}</p>
+          <p className={styles.eyebrow}>{listening ? "LISTENING…" : speaking ? "SPEAKING…" : `${subjectName.toUpperCase()} TUTOR`}</p>
+          <h2>{topic?.title ?? `Ready to study ${subjectName}`}</h2>
+          <p>{topic?.unit ?? "Ask a question, upload notes, or practise for NEET/JEE."}</p>
         </div>
       </section>
 
-      <div className={styles.actions}>
-        <button className={styles.primary} onClick={teach} disabled={!topic || !studentId || busy}>Teach me</button>
-        <button onClick={() => void startQuiz()} disabled={!topic || busy}>Quick check</button>
-        <button onClick={() => void mark("mastered")} disabled={!topic || !studentId}>I understood</button>
-        <button onClick={() => void mark("needs_revision")} disabled={!topic || !studentId}>Review later</button>
+      <div className={styles.studyTools} aria-label="Study tools">
+        <button onClick={() => runStudyMode("summary", "Summarize my uploaded study materials.")} disabled={!studentId || busy}>Summarize notes</button>
+        <button onClick={() => runStudyMode("important_questions", "Give me the most important revision questions and answers.")} disabled={!studentId || busy}>Important questions</button>
+        {subject !== "maths" && (
+          <button onClick={() => runStudyMode("neet", "Create a practice set for my selected subject.")} disabled={!studentId || busy}>NEET practice</button>
+        )}
+        {subject !== "biology" && (
+          <button onClick={() => runStudyMode("jee", "Create a practice set for my selected subject.")} disabled={!studentId || busy}>JEE practice</button>
+        )}
+        {subject === "chemistry" && (
+          <>
+            <button className={styles.primary} onClick={teach} disabled={!topic || !studentId || busy}>Teach topic</button>
+            <button onClick={() => void startQuiz()} disabled={!topic || busy}>Quick check</button>
+            <button onClick={() => void mark("mastered")} disabled={!topic || !studentId}>I understood</button>
+            <button onClick={() => void mark("needs_revision")} disabled={!topic || !studentId}>Review later</button>
+          </>
+        )}
         {speaking && <button onClick={() => speaker.current?.stop()}>Stop voice</button>}
       </div>
+
+      <section className={styles.uploadPanel} aria-label={`${subjectName} study materials`}>
+        <div className={styles.uploadHeader}>
+          <div>
+            <strong>Your {subjectName} materials</strong>
+            <span>PDF or TXT · saved with this browser profile</span>
+          </div>
+          <input
+            ref={fileInput}
+            className={styles.fileInput}
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            onChange={(event) => void uploadStudyFile(event.target.files?.[0])}
+            aria-label={`Upload ${subjectName} study document`}
+          />
+          <button type="button" onClick={() => fileInput.current?.click()} disabled={!studentId || uploading}>
+            {uploading ? "Reading…" : "Upload"}
+          </button>
+        </div>
+        {documents.length > 0 && (
+          <ul className={styles.documentList}>
+            {documents.map((document) => (
+              <li key={document.id}>
+                <span title={document.filename}>{document.filename}</span>
+                <button type="button" onClick={() => void removeStudyFile(document.id)} aria-label={`Delete ${document.filename}`}>
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className={styles.uploadNote}>DIVA searches these materials and cites them when available. Upload past papers for exact questions; generated exam practice is clearly labeled. Scanned PDFs need OCR. Clearing browser data removes access to saved files.</p>
+      </section>
 
       <section className={styles.conversation} aria-label="Tutor conversation" aria-live="polite">
         {error && <div className={styles.error} role="alert">{error}</div>}
         {!msgs.length && !quiz && (
-          <p className={styles.empty}>Choose a topic, then tap <strong>Teach me</strong> or ask your first question.</p>
+          <p className={styles.empty}>Ask DIVA anything about {subjectName}, or upload your notes and try a summary or exam practice set.</p>
         )}
         {msgs.map((message, index) => (
           <article key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : ""}`}>
@@ -411,17 +584,17 @@ export default function MobileTeacherApp() {
       </section>
 
       <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); ask(input); }}>
-        <button type="button" onClick={startListening} disabled={!topic || busy} aria-label="Ask by voice">
+        <button type="button" onClick={startListening} disabled={!studentId || busy} aria-label="Ask by voice">
           {listening ? "Listening…" : "🎤"}
         </button>
         <input
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={topic ? "Ask a question…" : "Choose a topic first"}
+          placeholder={`Ask about ${subjectName}…`}
           aria-label="Your question"
-          disabled={!topic || busy}
+          disabled={!studentId || busy}
         />
-        <button className={styles.primary} disabled={!topic || !input.trim() || busy}>Send</button>
+        <button className={styles.primary} disabled={!studentId || !input.trim() || busy}>Send</button>
       </form>
     </main>
   );

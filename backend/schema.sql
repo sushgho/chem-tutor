@@ -63,3 +63,32 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     total       INT NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS student_documents (
+    id          BIGSERIAL PRIMARY KEY,
+    student_id  BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    library_key UUID NOT NULL,
+    subject     TEXT NOT NULL CHECK (subject IN ('maths', 'physics', 'chemistry', 'biology')),
+    filename    TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS student_documents_owner_idx
+    ON student_documents (student_id, library_key, subject, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS student_document_chunks (
+    id          BIGSERIAL PRIMARY KEY,
+    document_id BIGINT NOT NULL REFERENCES student_documents(id) ON DELETE CASCADE,
+    student_id  BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    library_key UUID NOT NULL,
+    subject     TEXT NOT NULL CHECK (subject IN ('maths', 'physics', 'chemistry', 'biology')),
+    page        INT,
+    content     TEXT NOT NULL,
+    embedding   vector(__DIM__) NOT NULL,
+    tsv         tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
+);
+CREATE INDEX IF NOT EXISTS student_document_chunks_owner_idx
+    ON student_document_chunks (student_id, library_key, subject);
+CREATE INDEX IF NOT EXISTS student_document_chunks_embedding_idx
+    ON student_document_chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS student_document_chunks_tsv_idx
+    ON student_document_chunks USING gin (tsv);

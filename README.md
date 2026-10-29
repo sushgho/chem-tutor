@@ -1,8 +1,8 @@
-# Chemistry Teaching Assistant (RAG + talking teacher)
+# Multi-Subject Teaching Assistant (RAG + talking teacher)
 
-A tutor for Class XI-XII Chemistry. The teacher (DIVA) explains topics, answers
-doubts from your course material with page citations, speaks answers aloud through an
-animated avatar, and tracks each student's progress.
+A tutor for Class XI-XII Maths, Physics, Chemistry, and Biology. DIVA explains topics,
+answers questions using uploaded study materials with page citations, prepares revision
+summaries and NEET/JEE-style practice, speaks answers aloud, and tracks Chemistry progress.
 
 ```
 backend/   FastAPI + Postgres/pgvector + Groq    (RAG, lessons, quizzes, progress)
@@ -70,6 +70,20 @@ The mobile teacher is available at `/mobile`. The frontend includes a web app ma
 app icons, and a service worker so it can be installed from a supported mobile browser.
 The offline cache only saves the mobile page and its Next.js static assets; lessons,
 chat, quizzes, and progress still need an internet connection and the backend.
+
+The mobile app provides separate Maths, Physics, Chemistry, and Biology tutors for
+Classes XI-XII. Learners can upload text-based PDFs or UTF-8 TXT notes; the backend
+extracts and indexes their text for subject-specific chat and summaries. Uploaded
+materials stay in the database until deleted from the app. A random key stored in the
+browser keeps each study library separate; clearing this browser's site data also clears
+the key needed to access that library. Scanned PDFs require OCR before upload. The
+upload limit is 12 MB, 100 PDF pages, and 300,000 extracted characters.
+
+The tutor uses Groq's Llama 3.3 70B model by default (`MODEL` can override it). NEET/JEE
+buttons create clearly labeled practice questions, not claims about exact questions
+asked in past exams. For answers to an actual past question, upload the paper first so
+the tutor can cite its text. The app does not ship with a verified previous-year
+question bank.
 
 ### Make it public on Render
 The root `render.yaml` defines the FastAPI backend with lightweight keyword retrieval.
