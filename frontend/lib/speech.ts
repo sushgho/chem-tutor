@@ -5,9 +5,13 @@
 
 export function cleanForSpeech(s: string): string {
   return s
+    .replace(/```mermaid[\s\S]*?```/gi, " ")
+    .replace(/```[\s\S]*?```/g, " code example omitted ")
     .replace(/\$\$[\s\S]*?\$\$/g, " the equation shown ")
     .replace(/\$[^$]*\$/g, " the formula shown ")
     .replace(/\[\d+\]/g, "")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/[*_#`>]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -34,6 +38,21 @@ export class Speaker {
     this.lineBuffer = "";
     if (this.buffer.trim()) this.speak(this.buffer);
     this.buffer = "";
+  }
+
+  speakNow(text: string): boolean {
+    if (typeof window === "undefined" || !window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") {
+      return false;
+    }
+
+    this.stop();
+    const clean = cleanForSpeech(text);
+    if (!clean || this.muted) return false;
+
+    window.speechSynthesis.resume();
+    const parts = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [clean];
+    parts.forEach((part) => this.speak(part));
+    return true;
   }
 
   stop() {

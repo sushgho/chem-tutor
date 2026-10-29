@@ -255,6 +255,21 @@
   font-weight: 700;
 }
 
+.listenButton {
+  min-height: 36px;
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  border: 1px solid #dce3eb;
+  border-radius: 9px;
+  background: #f4f7fb;
+  color: #3b6ea5;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .message :global(p) {
   margin: .35em 0;
 }

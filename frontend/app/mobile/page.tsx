@@ -235,6 +235,16 @@ export default function MobileTeacherApp() {
     listenOnce(ask, () => setListening(false));
   }
 
+  function speakMessage(text: string) {
+    if (muted && speaker.current) {
+      speaker.current.muted = false;
+      setMuted(false);
+    }
+    if (!speaker.current?.speakNow(text)) {
+      setError("Voice playback isn't available in this browser. Try Chrome, Edge, or Safari.");
+    }
+  }
+
   return (
     <main className={styles.app}>
       <header className={styles.header}>
@@ -341,6 +351,11 @@ export default function MobileTeacherApp() {
         {msgs.map((message, index) => (
           <article key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : ""}`}>
             <span className={styles.messageRole}>{message.role === "user" ? "You" : "DIVA"}</span>
+            {message.role === "assistant" && message.content && !busy && (
+              <button className={styles.listenButton} type="button" onClick={() => speakMessage(message.content)}>
+                Listen
+              </button>
+            )}
             <Markdown>{message.content || "…"}</Markdown>
             {message.sources && message.sources.length > 0 && (
               <p className={styles.sources}>

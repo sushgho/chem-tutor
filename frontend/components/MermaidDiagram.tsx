@@ -4,6 +4,16 @@ import { useEffect, useId, useState } from "react";
 
 let mermaidPromise: Promise<typeof import("mermaid").default> | null = null;
 
+function quoteFlowchartNodeLabels(chart: string) {
+  return chart.replace(
+    /\b([A-Za-z_][\w-]*)\[(?![\[({])([^\[\]\n]+)\]/g,
+    (_match, node: string, label: string) => {
+      if (/^["']/.test(label.trim())) return `${node}[${label}]`;
+      return `${node}["${label.replace(/"/g, "#quot;")}"]`;
+    },
+  );
+}
+
 function getMermaid() {
   mermaidPromise ??= import("mermaid").then(({ default: mermaid }) => {
     mermaid.initialize({
@@ -27,7 +37,7 @@ export default function MermaidDiagram({ chart }: { chart: string }) {
     const timer = window.setTimeout(async () => {
       try {
         const mermaid = await getMermaid();
-        const result = await mermaid.render(id, chart);
+        const result = await mermaid.render(id, quoteFlowchartNodeLabels(chart));
         if (active) {
           setSvg(result.svg);
           setError(false);
