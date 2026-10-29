@@ -35,6 +35,21 @@ python -m app.ingest data/xii_ch3.pdf --grade XII --unit 3
 Chunks are tagged with grade, unit, page and the closest topic automatically.
 Scanned PDFs need OCR first.
 
+### Shared Maths, Physics, Chemistry, and Biology materials
+Place authorized NCERT-style PDFs in subject folders under `backend/data/`, then run
+from `backend/`:
+```bash
+python -m app.ingest_shared data
+```
+The batch importer identifies subject and class from standard filenames such as
+`kemh101.pdf` (Maths XI) or `lebo101.pdf` (Biology XII), skips exact duplicate files,
+and reports unclassified filenames instead of guessing. It indexes extracted text in
+the shared course library, which DIVA searches for every learner's lessons and chats.
+Data files remain Git-ignored and must not be committed. To load shared content into
+production, configure the production `DATABASE_URL` in the local `backend/.env` file
+and set `EMBEDDING_MODE=keyword` to match Render before running the command. Do not
+share the database URL in chat or commit it.
+
 ## 4. Frontend
 ```bash
 cd frontend

@@ -1,4 +1,4 @@
-import unittest
+﻿import unittest
 from unittest.mock import patch
 from uuid import UUID
 
@@ -18,6 +18,9 @@ class StudyApiTests(unittest.TestCase):
         self.close_pool.start()
         self.addCleanup(self.init_db.stop)
         self.addCleanup(self.close_pool.stop)
+        self.shared_materials = patch.object(main.course_materials, "retrieve", return_value=[])
+        self.shared_materials.start()
+        self.addCleanup(self.shared_materials.stop)
         self.client_context = TestClient(main.app)
         self.client = self.client_context.__enter__()
         self.addCleanup(self.client_context.__exit__, None, None, None)
@@ -68,7 +71,7 @@ class StudyApiTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Photosynthesis uses light.")
-        retrieve.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology", "Explain photosynthesis")
+        retrieve.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology", "Explain photosynthesis", limit=3)
 
     def test_exam_practice_uses_uploaded_material_instead_of_generic_search(self):
         request = {
@@ -90,7 +93,7 @@ class StudyApiTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         retrieve.assert_not_called()
-        retrieve_all.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology")
+        retrieve_all.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology", limit=3)
 
     def test_named_topic_lesson_retrieves_matching_material_for_any_subject(self):
         request = {
@@ -114,10 +117,13 @@ class StudyApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         retrieve.assert_called_once_with(
-            8, UUID(LIBRARY_KEY), "physics", "Laws of motion Teach this chapter with an example."
+            8, UUID(LIBRARY_KEY), "physics", "Laws of motion Teach this chapter with an example.", limit=3
         )
         self.assertIn("Laws of motion", stream_answer.call_args.args[1][-1]["content"])
         self.assertIn("exactly one short question", stream_answer.call_args.args[1][-1]["content"])
+        main.course_materials.retrieve.assert_called_once_with(
+            "physics", "XI", "Laws of motion Teach this chapter with an example.", limit=3
+        )
 
 
 if __name__ == "__main__":

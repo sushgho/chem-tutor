@@ -26,6 +26,32 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS chunks_scope_idx ON chunks (grade, unit_no, topic_id);
 
+-- Shared, subject-specific course material loaded from authorized local data files.
+CREATE TABLE IF NOT EXISTS course_documents (
+    id          BIGSERIAL PRIMARY KEY,
+    subject     TEXT NOT NULL CHECK (subject IN ('maths', 'physics', 'chemistry', 'biology')),
+    grade       TEXT NOT NULL CHECK (grade IN ('XI', 'XII')),
+    source      TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    UNIQUE (subject, grade, source),
+    UNIQUE (subject, grade, content_hash)
+);
+
+CREATE TABLE IF NOT EXISTS course_document_chunks (
+    id          BIGSERIAL PRIMARY KEY,
+    document_id BIGINT NOT NULL REFERENCES course_documents(id) ON DELETE CASCADE,
+    page        INT,
+    content     TEXT NOT NULL,
+    embedding   vector(__DIM__) NOT NULL,
+    tsv         tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
+);
+CREATE INDEX IF NOT EXISTS course_document_chunks_scope_idx
+    ON course_document_chunks (document_id);
+CREATE INDEX IF NOT EXISTS course_document_chunks_embedding_idx
+    ON course_document_chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS course_document_chunks_tsv_idx
+    ON course_document_chunks USING gin (tsv);
+
 CREATE TABLE IF NOT EXISTS students (
     id          BIGSERIAL PRIMARY KEY,
     name        TEXT NOT NULL,

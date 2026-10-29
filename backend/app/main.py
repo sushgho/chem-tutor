@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import db, documents, llm, progress, rag
+from . import course_materials, db, documents, llm, progress, rag
 from .config import settings
 from .curriculum import tree
 
@@ -186,23 +186,25 @@ def study_chat(
         query = f"{body.topic_title} {query}"
 
     if body.mode in ("summary", "important_questions", "neet", "jee"):
-        chunks = documents.retrieve_all(body.student_id, key, body.subject)
+        uploaded_chunks = documents.retrieve_all(body.student_id, key, body.subject, limit=3)
     else:
-        chunks = documents.retrieve(body.student_id, key, body.subject, query)
+        uploaded_chunks = documents.retrieve(body.student_id, key, body.subject, query, limit=3)
+    chunks = course_materials.retrieve(body.subject, body.grade, query, limit=3)
+    chunks.extend(uploaded_chunks)
     if body.subject == "chemistry":
         if topic:
             if body.topic_title != topic["title"]:
                 query = f"{topic['title']} {query}"
-        course_chunks = rag.retrieve(
+        curriculum_chunks = rag.retrieve(
             query,
             body.grade,
             topic["unit_no"] if topic else None,
             topic["id"] if topic else None,
-            k=5,
+            k=2,
             min_hits=3,
             start="topic" if topic else "unit",
         )
-        chunks.extend(course_chunks)
+        chunks.extend(curriculum_chunks)
     chunks = chunks[:8]
     history = [
         {"role": message.role, "content": message.content}
@@ -244,8 +246,14 @@ def lesson(body: LessonIn):
     progress.touch(body.student_id, body.topic_id)
     chunks = rag.retrieve(
         f"{topic['title']} {topic['unit_title']}", topic["grade"],
-        topic["unit_no"], body.topic_id, k=8, min_hits=4, start="topic",
+        topic["unit_no"], body.topic_id, k=4, min_hits=3, start="topic",
     )
+    chunks.extend(
+        course_materials.retrieve(
+            "chemistry", topic["grade"], f"{topic['title']} {topic['unit_title']}", limit=4
+        )
+    )
+    chunks = chunks[:8]
     prompt = llm.lesson_prompt(topic["title"], topic["unit_title"], rag.format_context(chunks))
 
     def gen():
@@ -265,7 +273,9 @@ def ask(body: AskIn):
     topic = _topic_or_404(body.topic_id)
     progress.record_doubt(body.student_id, body.topic_id)
     progress.log_message(body.student_id, body.topic_id, "doubt", "user", body.question)
-    chunks = rag.retrieve(body.question, topic["grade"], topic["unit_no"], body.topic_id, k=6)
+    chunks = rag.retrieve(body.question, topic["grade"], topic["unit_no"], body.topic_id, k=4)
+    chunks.extend(course_materials.retrieve("chemistry", topic["grade"], body.question, limit=4))
+    chunks = chunks[:8]
     history = [
         {"role": m["role"], "content": m["content"]}
         for m in body.history[-6:]
