@@ -65,5 +65,29 @@ class CourseMaterialRetrievalTests(unittest.TestCase):
         self.assertEqual([chunk.id for chunk in chunks], [2])
 
 
+class CourseChapterCatalogTests(unittest.TestCase):
+    def test_class_xi_uses_clean_subject_chapter_titles(self):
+        rows = [
+            {"chapter_no": 1, "title": "SETS Georg Cantor"},
+            {"chapter_no": 2, "title": "Chapter 2"},
+        ]
+        with patch.object(course_materials.pool, "connection") as connection:
+            connection.return_value.__enter__.return_value.execute.return_value.fetchall.return_value = rows
+            chapters = course_materials.list_chapters("maths", "XI")
+
+        self.assertEqual(chapters, [
+            {"chapter_no": 1, "title": "Sets"},
+            {"chapter_no": 2, "title": "Relations and Functions"},
+        ])
+
+    def test_class_xii_keeps_titles_from_its_indexed_material(self):
+        rows = [{"chapter_no": 1, "title": "Electric Charges and Fields"}]
+        with patch.object(course_materials.pool, "connection") as connection:
+            connection.return_value.__enter__.return_value.execute.return_value.fetchall.return_value = rows
+            chapters = course_materials.list_chapters("physics", "XII")
+
+        self.assertEqual(chapters, rows)
+
+
 if __name__ == "__main__":
     unittest.main()

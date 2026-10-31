@@ -5,6 +5,82 @@ from .db import pool
 from .embeddings import embed_query
 
 
+CLASS_XI_CHAPTER_TITLES = {
+    "maths": {
+        1: "Sets",
+        2: "Relations and Functions",
+        3: "Trigonometric Functions",
+        4: "Complex Numbers and Quadratic Equations",
+        5: "Linear Inequalities",
+        6: "Permutations and Combinations",
+        7: "Binomial Theorem",
+        8: "Sequences and Series",
+        9: "Straight Lines",
+        10: "Conic Sections",
+        11: "Introduction to Three Dimensional Geometry",
+        12: "Limits and Derivatives",
+        13: "Statistics",
+        14: "Probability",
+    },
+    "physics": {
+        1: "Units and Measurement",
+        2: "Motion in a Straight Line",
+        3: "Motion in a Plane",
+        4: "Laws of Motion",
+        5: "Work, Energy and Power",
+        6: "Systems of Particles and Rotational Motion",
+        7: "Gravitation",
+        8: "Mechanical Properties of Solids",
+        9: "Mechanical Properties of Fluids",
+        10: "Thermal Properties of Matter",
+        11: "Thermodynamics",
+        12: "Kinetic Theory",
+        13: "Oscillations",
+        14: "Waves",
+    },
+    "chemistry": {
+        1: "Some Basic Concepts of Chemistry",
+        2: "Structure of Atom",
+        3: "Classification of Elements and Periodicity in Properties",
+        4: "Chemical Bonding and Molecular Structure",
+        5: "States of Matter: Gases and Liquids",
+        6: "Thermodynamics",
+        7: "Equilibrium",
+        8: "Redox Reactions",
+        9: "Hydrogen",
+        10: "The s-Block Elements",
+        11: "Some p-Block Elements",
+        12: "Organic Chemistry: Some Basic Principles and Techniques",
+        13: "Hydrocarbons",
+        14: "Environmental Chemistry",
+    },
+    "biology": {
+        1: "The Living World",
+        2: "Biological Classification",
+        3: "Plant Kingdom",
+        4: "Animal Kingdom",
+        5: "Morphology of Flowering Plants",
+        6: "Anatomy of Flowering Plants",
+        7: "Structural Organisation in Animals",
+        8: "Cell: The Unit of Life",
+        9: "Biomolecules",
+        10: "Cell Cycle and Cell Division",
+        11: "Transport in Plants",
+        12: "Mineral Nutrition",
+        13: "Photosynthesis in Higher Plants",
+        14: "Respiration in Plants",
+        15: "Plant Growth and Development",
+        16: "Digestion and Absorption",
+        17: "Breathing and Exchange of Gases",
+        18: "Body Fluids and Circulation",
+        19: "Excretory Products and their Elimination",
+        20: "Locomotion and Movement",
+        21: "Neural Control and Coordination",
+        22: "Chemical Coordination and Integration",
+    },
+}
+
+
 def list_chapters(subject: str, grade: str) -> list[dict]:
     with pool.connection() as conn:
         rows = conn.execute(
@@ -18,7 +94,12 @@ def list_chapters(subject: str, grade: str) -> list[dict]:
     chapters = {}
     for row in rows:
         chapter_no = row["chapter_no"]
-        chapters.setdefault(chapter_no, {"chapter_no": chapter_no, "title": row["title"]})
+        title = (
+            CLASS_XI_CHAPTER_TITLES.get(subject, {}).get(chapter_no, row["title"])
+            if grade == "XI"
+            else row["title"]
+        )
+        chapters.setdefault(chapter_no, {"chapter_no": chapter_no, "title": title})
     return list(chapters.values())
 
 
