@@ -404,9 +404,27 @@ export default function MobileTeacherApp() {
           <p className={styles.eyebrow}>DIVA · MULTI-SUBJECT TUTOR</p>
           <h1>Mobile Teacher App</h1>
         </div>
-        <button className={styles.soundButton} onClick={() => setMuted((value) => !value)} aria-label={muted ? "Turn voice on" : "Mute voice"}>
-          {muted ? "Sound off" : "Sound on"}
-        </button>
+        <div className={styles.headerActions}>
+          <input
+            ref={fileInput}
+            className={styles.fileInput}
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            onChange={(event) => void uploadStudyFile(event.target.files?.[0])}
+            aria-label={`Upload ${subjectName} study document`}
+          />
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={!studentId || uploading}
+            aria-label={`Upload ${subjectName} study document`}
+          >
+            {uploading ? "Reading…" : "Upload"}
+          </button>
+          <button type="button" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Turn voice on" : "Mute voice"}>
+            {muted ? "Sound off" : "Sound on"}
+          </button>
+        </div>
       </header>
 
       <section className={styles.subjectSection} aria-label="Choose a subject">
@@ -573,25 +591,8 @@ export default function MobileTeacherApp() {
         {speaking && <button onClick={() => speaker.current?.stop()}>Stop voice</button>}
       </div>
 
-      <section className={styles.uploadPanel} aria-label={`${subjectName} study materials`}>
-        <div className={styles.uploadHeader}>
-          <div>
-            <strong>Your {subjectName} materials</strong>
-            <span>PDF or TXT · saved with this browser profile</span>
-          </div>
-          <input
-            ref={fileInput}
-            className={styles.fileInput}
-            type="file"
-            accept=".pdf,.txt,application/pdf,text/plain"
-            onChange={(event) => void uploadStudyFile(event.target.files?.[0])}
-            aria-label={`Upload ${subjectName} study document`}
-          />
-          <button type="button" onClick={() => fileInput.current?.click()} disabled={!studentId || uploading}>
-            {uploading ? "Reading…" : "Upload"}
-          </button>
-        </div>
-        {documents.length > 0 && (
+      {documents.length > 0 && (
+        <section className={styles.savedDocuments} aria-label={`${subjectName} uploaded materials`}>
           <ul className={styles.documentList}>
             {documents.map((document) => (
               <li key={document.id}>
@@ -602,9 +603,8 @@ export default function MobileTeacherApp() {
               </li>
             ))}
           </ul>
-        )}
-        <p className={styles.uploadNote}>DIVA searches these materials and cites them when available. Upload past papers for exact questions; generated exam practice is clearly labeled. Scanned PDFs need OCR. Clearing browser data removes access to saved files.</p>
-      </section>
+        </section>
+      )}
 
       <section className={styles.conversation} aria-label="Tutor conversation" aria-live="polite">
         {error && <div className={styles.error} role="alert">{error}</div>}
