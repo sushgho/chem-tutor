@@ -3,6 +3,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, Mock, patch
 
+from pypdf.errors import LimitReachedError
+
+from app import ingest
 from app.ingest_shared import classify, index_file
 
 
@@ -55,6 +58,23 @@ class SharedIngestTests(unittest.TestCase):
         self.assertEqual(result, ("indexed", 1))
         inserted_rows = list(cursor.executemany.call_args.args[1])
         self.assertEqual(inserted_rows, [(42, 1, "a" * 100, [0.1, 0.2])])
+
+    def test_pdf_reader_skips_pages_over_pypdf_parsing_limit(self):
+        pages = [Mock(), Mock(), Mock()]
+        pages[0].extract_text.return_value = "first page"
+        pages[1].extract_text.side_effect = LimitReachedError("stream limit")
+        pages[2].extract_text.return_value = "last page"
+        reader = Mock(pages=pages)
+
+        with patch("app.ingest.PdfReader", return_value=reader), self.assertLogs(
+            "app.ingest", level="WARNING"
+        ):
+            extracted = list(ingest.read_pages(Path("book.pdf")))
+
+        self.assertEqual(extracted, [(1, "first page"), (3, "last page")])
+
+    def test_text_splitting_removes_nul_bytes(self):
+        self.assertEqual(list(ingest.split_text("chapter\x00 text")), ["chapter text"])
 
 
 if __name__ == "__main__":

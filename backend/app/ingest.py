@@ -8,28 +8,37 @@ Each chunk is tagged with grade, unit, page and (automatically) the closest topi
 inside that unit unless --topic is given.
 """
 import argparse
+import logging
 import pathlib
 import re
 
 from pypdf import PdfReader
+from pypdf.errors import LimitReachedError
 
 from . import db
 from .embeddings import embed_docs, similarity
 
 CHUNK_CHARS = 900
 OVERLAP = 150
+logger = logging.getLogger(__name__)
 
 
 def read_pages(path: pathlib.Path):
     """Yield (page_number, text)."""
     if path.suffix.lower() == ".pdf":
         for i, page in enumerate(PdfReader(str(path)).pages, start=1):
-            yield i, page.extract_text() or ""
+            try:
+                text = page.extract_text() or ""
+            except LimitReachedError as exc:
+                logger.warning("Skipped text extraction for %s page %d: %s", path, i, exc)
+                continue
+            yield i, text
     else:
         yield None, path.read_text(encoding="utf-8")
 
 
 def split_text(text: str):
+    text = text.replace("\x00", "")
     text = re.sub(r"[ \t]+", " ", text)
     paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
     buf = ""
