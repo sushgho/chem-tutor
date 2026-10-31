@@ -179,7 +179,8 @@
   font-weight: 600;
 }
 
-.topicEntry input {
+.topicEntry input,
+.topicEntry select {
   width: 100%;
   min-height: 44px;
   padding: 8px 11px;

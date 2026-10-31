@@ -1,12 +1,13 @@
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, Mock, patch
 
 from pypdf.errors import LimitReachedError
 
 from app import ingest
-from app.ingest_shared import classify, index_file
+from app.ingest_shared import chapter_metadata, classify, index_file
 
 
 class SharedIngestTests(unittest.TestCase):
@@ -28,6 +29,19 @@ class SharedIngestTests(unittest.TestCase):
     def test_leaves_unknown_filenames_unclassified(self):
         self.assertIsNone(classify(Path("desm_s_Chemistry.pdf")))
         self.assertIsNone(classify(Path("chemistry_notes.pdf")))
+
+    def test_extracts_a_chapter_title_from_textbook_front_matter(self):
+        with patch("app.ingest_shared._read_first_pages", return_value=[
+            "CHAPTER ONE\nUNITS AND MEASUREMENT\n1.1 INTRODUCTION"
+        ]):
+            self.assertEqual(chapter_metadata(Path("keph101.pdf"), "physics"), (1, "UNITS AND MEASUREMENT"))
+
+    def test_falls_back_to_the_chapter_number_when_heading_is_missing(self):
+        with patch("app.ingest_shared._read_first_pages", return_value=["Foreword and contents"]):
+            self.assertEqual(chapter_metadata(Path("kemh102.pdf"), "maths"), (2, "Chapter 2"))
+
+    def test_supplementary_files_without_chapter_numbers_are_not_catalogued(self):
+        self.assertEqual(chapter_metadata(Path("kemh1an.pdf"), "maths"), (None, ""))
 
     def test_inserts_chunks_with_a_psycopg_cursor(self):
         connection = Mock()
@@ -52,6 +66,7 @@ class SharedIngestTests(unittest.TestCase):
                 patch("app.ingest_shared.db.pool.connection", return_value=pool_context),
                 patch("app.ingest_shared.ingest.read_pages", return_value=[(1, "a" * 100)]),
                 patch("app.ingest_shared.embed_docs", return_value=[[0.1, 0.2]]),
+                patch("app.ingest_shared.chapter_metadata", return_value=(1, "The Living World")),
             ):
                 result = index_file(source, root)
 

@@ -12,6 +12,7 @@ type StudyMode = "chat" | "lesson" | "check" | "summary" | "important_questions"
 type StudyDocument = { id: number; filename: string; created_at: string };
 type Topic = { id: string; title: string };
 type Unit = { unit_no: number; title: string; periods: number; topics: Topic[] };
+type ChapterChoice = { chapter_no: number; title: string };
 type Tree = Record<string, Unit[]>;
 type Prog = {
   topics: Record<string, { status: string; mastery: number; doubts_count: number; due: boolean }>;
@@ -29,6 +30,7 @@ export default function MobileTeacherApp() {
   const [unitNo, setUnitNo] = useState<number | null>(null);
   const [topic, setTopic] = useState<{ id: string; title: string; unit: string } | null>(null);
   const [chapterTopic, setChapterTopic] = useState("");
+  const [chapterChoices, setChapterChoices] = useState<ChapterChoice[]>([]);
   const [studentId, setStudentId] = useState<number | null>(null);
   const [libraryKey, setLibraryKey] = useState("");
   const [prog, setProg] = useState<Prog | null>(null);
@@ -131,6 +133,21 @@ export default function MobileTeacherApp() {
       active = false;
     };
   }, [refreshDocuments]);
+
+  useEffect(() => {
+    let active = true;
+    setChapterChoices([]);
+    setChapterTopic("");
+    if (subject === "chemistry") return () => { active = false; };
+    void getJSON<{ chapters: ChapterChoice[] }>(
+      `/study/chapters?subject=${subject}&grade=${grade}`,
+    ).then(({ chapters }) => {
+      if (active) setChapterChoices(chapters);
+    }).catch((e: unknown) => {
+      if (active) setError(e instanceof Error ? e.message : "Couldn't load the chapter list.");
+    });
+    return () => { active = false; };
+  }, [subject, grade]);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -465,9 +482,26 @@ export default function MobileTeacherApp() {
       {subject !== "chemistry" && (
         <section className={styles.topicEntry} aria-label={`Choose a ${subjectName} chapter or topic`}>
           <label>
-            <span>Chapter or topic</span>
+            <span>Chapter</span>
+            <select
+              value={chapterChoices.some((item) => item.title === chapterTopic) ? chapterTopic : ""}
+              onChange={(event) => setChapterTopic(event.target.value)}
+              aria-label={`${subjectName} chapter`}
+            >
+              <option value="">
+                {chapterChoices.length ? "Choose a chapter" : "No shared chapters indexed for this class"}
+              </option>
+              {chapterChoices.map((item) => (
+                <option key={`${item.chapter_no}-${item.title}`} value={item.title}>
+                  {item.chapter_no}. {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Or enter another topic</span>
             <input
-              value={chapterTopic}
+              value={chapterChoices.some((item) => item.title === chapterTopic) ? "" : chapterTopic}
               onChange={(event) => setChapterTopic(event.target.value)}
               placeholder={
                 subject === "maths" ? "e.g., Quadratic equations" :

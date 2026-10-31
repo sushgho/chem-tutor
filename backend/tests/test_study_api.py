@@ -37,6 +37,15 @@ class StudyApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         list_documents.assert_called_once_with(8, UUID(LIBRARY_KEY), "biology")
 
+    def test_chapter_catalog_returns_available_subject_choices(self):
+        chapters = [{"chapter_no": 1, "title": "UNITS AND MEASUREMENT"}]
+        with patch.object(main.course_materials, "list_chapters", return_value=chapters) as list_chapters:
+            response = self.client.get("/study/chapters?subject=physics&grade=XI")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"chapters": chapters})
+        list_chapters.assert_called_once_with("physics", "XI")
+
     def test_upload_endpoint_accepts_supported_file_and_library_key(self):
         saved = {"id": 9, "filename": "notes.txt", "subject": "biology", "chunks": 1}
         with patch.object(main.documents, "create_document", return_value=saved) as create:

@@ -11,8 +11,16 @@ from . import db, ingest
 from .embeddings import embed_docs
 
 NCERT_BOOK = re.compile(r"^([kl])e(mh|ph|ch|bo)\d", re.IGNORECASE)
+NCERT_CHAPTER = re.compile(r"^([kl])e(mh|ph|ch|bo)(\d)(\d{2})", re.IGNORECASE)
 SUBJECTS = {"mh": "maths", "ph": "physics", "ch": "chemistry", "bo": "biology"}
 MIN_CHUNK_CHARS = 80
+SECTION_MARKER = re.compile(
+    r"(?i)^\s*(?:chapter|unit)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*$"
+)
+NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
 
 
 def classify(path: pathlib.Path) -> tuple[str, str] | None:
@@ -24,11 +32,56 @@ def classify(path: pathlib.Path) -> tuple[str, str] | None:
     return subject, grade
 
 
+def chapter_metadata(path: pathlib.Path, subject: str) -> tuple[int | None, str]:
+    match = NCERT_CHAPTER.match(path.stem)
+    if not match:
+        return None, ""
+    chapter_no = int(match.group(4))
+    if subject == "chemistry" and int(match.group(3)) > 1:
+        chapter_no += 6 * (int(match.group(3)) - 1)
+
+    text = "\n".join(page_text for _, page_text in zip(range(3), _read_first_pages(path)))
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        marker = SECTION_MARKER.match(line)
+        if not marker:
+            continue
+        marker_number = marker.group(1).lower()
+        chapter_no = NUMBER_WORDS.get(marker_number, int(marker_number) if marker_number.isdigit() else chapter_no)
+        title_lines = []
+        for candidate in lines[index + 1:index + 5]:
+            if (
+                re.match(r"(?i)^(after studying|learning objectives|contents|exercise|summary)\b", candidate)
+                or re.match(r"^\d+(?:\.\d+)+\b", candidate)
+                or re.fullmatch(r"[\W\d_]+", candidate)
+            ):
+                break
+            title_lines.append(candidate)
+            if candidate.endswith((".", "!", "?")):
+                break
+        title = re.sub(r"\s+", " ", " ".join(title_lines)).strip(" .:-")
+        title = re.sub(r"(?i)^(?:strUctUre|classifiCation)\b", lambda m: m.group(0).title(), title)
+        if title:
+            return chapter_no, title[:160]
+
+    return chapter_no, f"Chapter {chapter_no}"
+
+
+def _read_first_pages(path: pathlib.Path):
+    from pypdf import PdfReader
+
+    yield from (
+        page.extract_text() or ""
+        for page in PdfReader(str(path)).pages[:3]
+    )
+
+
 def index_file(path: pathlib.Path, root: pathlib.Path) -> tuple[str, int]:
     classification = classify(path)
     if classification is None:
         return "unclassified", 0
     subject, grade = classification
+    chapter_no, title = chapter_metadata(path, subject)
     source = path.relative_to(root).as_posix()
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -39,6 +92,10 @@ def index_file(path: pathlib.Path, root: pathlib.Path) -> tuple[str, int]:
             (subject, grade, source),
         ).fetchone()
         if same_source and same_source["content_hash"] == digest:
+            conn.execute(
+                """UPDATE course_documents SET chapter_no = %s, title = %s WHERE id = %s""",
+                (chapter_no, title, same_source["id"]),
+            )
             return "unchanged", 0
         duplicate = conn.execute(
             """SELECT source FROM course_documents
@@ -61,12 +118,13 @@ def index_file(path: pathlib.Path, root: pathlib.Path) -> tuple[str, int]:
 
     with db.pool.connection() as conn:
         document = conn.execute(
-            """INSERT INTO course_documents (subject, grade, source, content_hash)
-               VALUES (%s, %s, %s, %s)
+            """INSERT INTO course_documents (subject, grade, source, title, chapter_no, content_hash)
+               VALUES (%s, %s, %s, %s, %s, %s)
                ON CONFLICT (subject, grade, source) DO UPDATE
-               SET content_hash = EXCLUDED.content_hash
+               SET content_hash = EXCLUDED.content_hash, title = EXCLUDED.title,
+                   chapter_no = EXCLUDED.chapter_no
                RETURNING id""",
-            (subject, grade, source, digest),
+            (subject, grade, source, title, chapter_no, digest),
         ).fetchone()
         document_id = document["id"]
         conn.execute("DELETE FROM course_document_chunks WHERE document_id = %s", (document_id,))

@@ -5,6 +5,23 @@ from .db import pool
 from .embeddings import embed_query
 
 
+def list_chapters(subject: str, grade: str) -> list[dict]:
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """SELECT chapter_no, title
+               FROM course_documents
+               WHERE subject = %s AND grade = %s
+                 AND chapter_no IS NOT NULL AND title <> ''
+               ORDER BY chapter_no, title""",
+            (subject, grade),
+        ).fetchall()
+    chapters = {}
+    for row in rows:
+        chapter_no = row["chapter_no"]
+        chapters.setdefault(chapter_no, {"chapter_no": chapter_no, "title": row["title"]})
+    return list(chapters.values())
+
+
 def retrieve(subject: str, grade: str, query: str, limit: int = 4) -> list[rag.Chunk]:
     query_vector = embed_query(query)
     with pool.connection() as conn:

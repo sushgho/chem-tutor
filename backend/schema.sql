@@ -32,10 +32,14 @@ CREATE TABLE IF NOT EXISTS course_documents (
     subject     TEXT NOT NULL CHECK (subject IN ('maths', 'physics', 'chemistry', 'biology')),
     grade       TEXT NOT NULL CHECK (grade IN ('XI', 'XII')),
     source      TEXT NOT NULL,
+    title       TEXT NOT NULL DEFAULT '',
+    chapter_no  INT,
     content_hash TEXT NOT NULL,
     UNIQUE (subject, grade, source),
     UNIQUE (subject, grade, content_hash)
 );
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS chapter_no INT;
 
 CREATE TABLE IF NOT EXISTS course_document_chunks (
     id          BIGSERIAL PRIMARY KEY,

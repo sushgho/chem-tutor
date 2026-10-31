@@ -103,6 +103,14 @@ def curriculum():
     return tree()
 
 
+@app.get("/study/chapters")
+def study_chapters(
+    subject: Literal["maths", "physics", "chemistry", "biology"],
+    grade: Literal["XI", "XII"],
+):
+    return {"chapters": course_materials.list_chapters(subject, grade)}
+
+
 @app.post("/students")
 def create_student(body: StudentIn):
     return {"id": progress.ensure_student(body.name)}

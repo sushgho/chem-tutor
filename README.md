@@ -101,6 +101,10 @@ non-Chemistry subjects use the selected topic and uploaded notes as context; the
 yet have built-in chapter lists, so learners can type the chapter name or upload their
 syllabus/notes.
 
+Non-Chemistry chapter choices are built from the indexed shared textbooks. Run
+`python -m app.ingest_shared data` after adding PDFs to refresh both their search
+content and chapter catalog.
+
 The tutor uses Groq's Llama 3.3 70B model by default (`MODEL` can override it). NEET/JEE
 buttons create clearly labeled practice questions, not claims about exact questions
 asked in past exams. For answers to an actual past question, upload the paper first so
