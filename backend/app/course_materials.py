@@ -27,6 +27,7 @@ def retrieve(subject: str, grade: str, query: str, limit: int = 4) -> list[rag.C
                    ORDER BY ts_rank_cd(s.tsv, q) DESC LIMIT 30
                )
                SELECT s.id, s.content, s.source, s.page, s.embedding <=> %(qv)s AS dist,
+                      f.id IS NOT NULL AS keyword_match,
                       COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + f.r), 0) AS score
                FROM scoped s
                LEFT JOIN v ON v.id = s.id
@@ -42,8 +43,14 @@ def retrieve(subject: str, grade: str, query: str, limit: int = 4) -> list[rag.C
                 "limit": limit,
             },
         ).fetchall()
-    return [
-        rag.Chunk(row["id"], row["content"], row["source"], row["page"], None, float(row["dist"]))
-        for row in rows
-        if float(row["dist"]) <= settings.max_dist
-    ]
+    chunks = []
+    for row in rows:
+        if settings.embedding_mode == "keyword":
+            if not row["keyword_match"]:
+                continue
+        elif float(row["dist"]) > settings.max_dist:
+            continue
+        chunks.append(
+            rag.Chunk(row["id"], row["content"], row["source"], row["page"], None, float(row["dist"]))
+        )
+    return chunks
