@@ -70,14 +70,15 @@ def index_file(path: pathlib.Path, root: pathlib.Path) -> tuple[str, int]:
         ).fetchone()
         document_id = document["id"]
         conn.execute("DELETE FROM course_document_chunks WHERE document_id = %s", (document_id,))
-        conn.executemany(
-            """INSERT INTO course_document_chunks (document_id, page, content, embedding)
-               VALUES (%s, %s, %s, %s)""",
-            (
-                (document_id, page, content, vector)
-                for (page, content), vector in zip(page_chunks, vectors)
-            ),
-        )
+        with conn.cursor() as cursor:
+            cursor.executemany(
+                """INSERT INTO course_document_chunks (document_id, page, content, embedding)
+                   VALUES (%s, %s, %s, %s)""",
+                (
+                    (document_id, page, content, vector)
+                    for (page, content), vector in zip(page_chunks, vectors)
+                ),
+            )
     return "indexed", len(page_chunks)
 
 
