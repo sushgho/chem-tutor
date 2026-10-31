@@ -71,9 +71,15 @@ export async function streamPost(
   if (hdr && onSources) onSources(JSON.parse(decodeURIComponent(hdr)));
   const reader = res.body.getReader();
   const dec = new TextDecoder();
+  let receivedText = false;
   for (;;) {
     const { done, value } = await reader.read();
+    const text = done ? dec.decode() : dec.decode(value, { stream: true });
+    if (text) {
+      receivedText = true;
+      onText(text);
+    }
     if (done) break;
-    onText(dec.decode(value, { stream: true }));
   }
+  if (!receivedText) throw new Error("DIVA returned an empty response. Please try again.");
 }

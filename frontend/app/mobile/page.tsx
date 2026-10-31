@@ -230,6 +230,10 @@ export default function MobileTeacherApp() {
     } catch (e) {
       if (!(e instanceof Error && e.name === "AbortError")) {
         setError(e instanceof Error ? e.message : "The tutor couldn't complete that request.");
+        setMsgs((current) => {
+          const last = current[current.length - 1];
+          return last?.role === "assistant" && !last.content ? current.slice(0, -1) : current;
+        });
       }
     } finally {
       if (abort.current === controller) {

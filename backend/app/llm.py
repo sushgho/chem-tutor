@@ -10,6 +10,10 @@ from .config import settings
 
 _client: OpenAI | None = None
 
+MODEL_REPLACEMENTS = {
+    "llama-3.3-70b-versatile": "openai/gpt-oss-120b",
+}
+
 
 def client() -> OpenAI:
     global _client
@@ -19,6 +23,10 @@ def client() -> OpenAI:
             base_url="https://api.groq.com/openai/v1",
         )
     return _client
+
+
+def model_id() -> str:
+    return MODEL_REPLACEMENTS.get(settings.model, settings.model)
 
 
 TEACHER_SYSTEM = r"""You are Dr. Asha, a warm and patient chemistry teacher for Class {grade} students following the NCERT-aligned higher secondary syllabus. You are speaking aloud to a student, so write the way a good teacher talks: short paragraphs, plain sentences, no tables, no emoji.
@@ -198,7 +206,7 @@ def stream_answer(system: str, messages: list[dict], max_tokens: int = 1500):
     messages = list(messages)
     for _ in range(6):  # bounded tool loop
         stream = client().chat.completions.create(
-            model=settings.model,
+            model=model_id(),
             max_tokens=max_tokens,
             messages=[{"role": "system", "content": system}, *messages],
             tools=TOOLS,
@@ -258,7 +266,7 @@ def make_quiz(grade: str, topic_title: str, context: str, n: int = 3) -> list[di
         "Use $...$ LaTeX for formulas."
     )
     resp = client().chat.completions.create(
-        model=settings.model,
+        model=model_id(),
         max_tokens=2000,
         messages=[
             {"role": "system", "content": "You write accurate, unambiguous chemistry quiz questions."},
