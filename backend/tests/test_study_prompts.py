@@ -35,6 +35,7 @@ class StudyPromptTests(unittest.TestCase):
                 system = study_teacher_system(subject, "XI")
                 self.assertIn("Mermaid flowchart or concept map", system)
                 self.assertIn("```mermaid", system)
+                self.assertIn("instead of an ASCII-art diagram", system)
                 self.assertIn("Do not force a diagram", system)
 
 
