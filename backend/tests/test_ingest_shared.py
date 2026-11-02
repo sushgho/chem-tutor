@@ -1,4 +1,5 @@
 import unittest
+import hashlib
 from pathlib import Path
 from unittest.mock import patch
 from tempfile import TemporaryDirectory
@@ -73,6 +74,38 @@ class SharedIngestTests(unittest.TestCase):
         self.assertEqual(result, ("indexed", 1))
         inserted_rows = list(cursor.executemany.call_args.args[1])
         self.assertEqual(inserted_rows, [(42, 1, "a" * 100, [0.1, 0.2])])
+        self.assertEqual(connection.execute.call_args_list[2].args[1][-1], b"test PDF")
+
+    def test_existing_document_gets_pdf_data_without_reindexing(self):
+        pdf_data = b"existing textbook PDF"
+        digest = hashlib.sha256(pdf_data).hexdigest()
+        connection = Mock()
+        connection.execute.side_effect = [
+            Mock(fetchone=Mock(return_value={
+                "id": 7,
+                "content_hash": digest,
+                "has_pdf": False,
+            })),
+            Mock(),
+        ]
+        pool_context = MagicMock()
+        pool_context.__enter__.return_value = connection
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "kebo101.pdf"
+            source.write_bytes(pdf_data)
+            with (
+                patch("app.ingest_shared.db.pool.connection", return_value=pool_context),
+                patch("app.ingest_shared.chapter_metadata", return_value=(1, "The Living World")),
+            ):
+                result = index_file(source, root)
+
+        self.assertEqual(result, ("unchanged", 0))
+        update = connection.execute.call_args_list[1]
+        self.assertEqual(" ".join(update.args[0].split()),
+                         "UPDATE course_documents SET chapter_no = %s, title = %s, pdf_data = %s WHERE id = %s")
+        self.assertEqual(update.args[1], (1, "The Living World", pdf_data, 7))
 
     def test_pdf_reader_skips_pages_over_pypdf_parsing_limit(self):
         pages = [Mock(), Mock(), Mock()]

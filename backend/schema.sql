@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS course_documents (
 );
 ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
 ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS chapter_no INT;
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS pdf_data BYTEA;
 
 CREATE TABLE IF NOT EXISTS course_document_chunks (
     id          BIGSERIAL PRIMARY KEY,

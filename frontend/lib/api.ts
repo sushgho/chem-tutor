@@ -2,7 +2,13 @@
 // ever talks to the frontend's own port (works locally and in GitHub Codespaces).
 export const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 
-export type Source = { n: number; source: string; page: number | null; topic: string | null };
+export type Source = {
+  n: number;
+  source: string;
+  page: number | null;
+  topic: string | null;
+  image_url?: string;
+};
 
 async function errorMessage(res: Response): Promise<string> {
   const body = await res.text();

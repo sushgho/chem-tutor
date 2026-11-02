@@ -44,6 +44,7 @@ class Chunk:
     page: int | None
     topic_title: str | None
     dist: float
+    image_url: str | None = None
 
 
 def _search(query, qv, where, params, k):
@@ -91,7 +92,15 @@ def format_context(chunks: list[Chunk]) -> str:
 
 
 def sources_payload(chunks: list[Chunk]) -> list[dict]:
-    return [
-        {"n": i, "source": c.source, "page": c.page, "topic": c.topic_title}
-        for i, c in enumerate(chunks, start=1)
-    ]
+    sources = []
+    for i, chunk in enumerate(chunks, start=1):
+        source = {
+            "n": i,
+            "source": chunk.source,
+            "page": chunk.page,
+            "topic": chunk.topic_title,
+        }
+        if chunk.image_url:
+            source["image_url"] = chunk.image_url
+        sources.append(source)
+    return sources

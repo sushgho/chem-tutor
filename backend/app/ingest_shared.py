@@ -83,19 +83,27 @@ def index_file(path: pathlib.Path, root: pathlib.Path) -> tuple[str, int]:
     subject, grade = classification
     chapter_no, title = chapter_metadata(path, subject)
     source = path.relative_to(root).as_posix()
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    pdf_data = path.read_bytes()
+    digest = hashlib.sha256(pdf_data).hexdigest()
 
     with db.pool.connection() as conn:
         same_source = conn.execute(
-            """SELECT id, content_hash FROM course_documents
+            """SELECT id, content_hash, pdf_data IS NOT NULL AS has_pdf FROM course_documents
                WHERE subject = %s AND grade = %s AND source = %s""",
             (subject, grade, source),
         ).fetchone()
         if same_source and same_source["content_hash"] == digest:
-            conn.execute(
-                """UPDATE course_documents SET chapter_no = %s, title = %s WHERE id = %s""",
-                (chapter_no, title, same_source["id"]),
-            )
+            if same_source["has_pdf"]:
+                conn.execute(
+                    """UPDATE course_documents SET chapter_no = %s, title = %s WHERE id = %s""",
+                    (chapter_no, title, same_source["id"]),
+                )
+            else:
+                conn.execute(
+                    """UPDATE course_documents
+                       SET chapter_no = %s, title = %s, pdf_data = %s WHERE id = %s""",
+                    (chapter_no, title, pdf_data, same_source["id"]),
+                )
             return "unchanged", 0
         duplicate = conn.execute(
             """SELECT source FROM course_documents
@@ -118,13 +126,14 @@ def index_file(path: pathlib.Path, root: pathlib.Path) -> tuple[str, int]:
 
     with db.pool.connection() as conn:
         document = conn.execute(
-            """INSERT INTO course_documents (subject, grade, source, title, chapter_no, content_hash)
-               VALUES (%s, %s, %s, %s, %s, %s)
+            """INSERT INTO course_documents
+               (subject, grade, source, title, chapter_no, content_hash, pdf_data)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (subject, grade, source) DO UPDATE
                SET content_hash = EXCLUDED.content_hash, title = EXCLUDED.title,
-                   chapter_no = EXCLUDED.chapter_no
+                   chapter_no = EXCLUDED.chapter_no, pdf_data = EXCLUDED.pdf_data
                RETURNING id""",
-            (subject, grade, source, title, chapter_no, digest),
+            (subject, grade, source, title, chapter_no, digest, pdf_data),
         ).fetchone()
         document_id = document["id"]
         conn.execute("DELETE FROM course_document_chunks WHERE document_id = %s", (document_id,))

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
 import Markdown from "@/components/Markdown";
+import SourcePages from "@/components/SourcePages";
 import { getJSON, postJSON, streamPost, Source } from "@/lib/api";
 import { Speaker, listenOnce } from "@/lib/speech";
 
@@ -226,9 +227,12 @@ export default function Home() {
             <div key={i} className={`msg ${m.role}`}>
               <Markdown>{m.content || "…"}</Markdown>
               {m.sources && m.sources.length > 0 && (
-                <div className="sources">
-                  Sources: {m.sources.map((s) => `[${s.n}] ${s.source}${s.page ? ` p.${s.page}` : ""}`).join("  ·  ")}
-                </div>
+                <>
+                  <div className="sources">
+                    Sources: {m.sources.map((s) => `[${s.n}] ${s.source}${s.page ? ` p.${s.page}` : ""}`).join("  ·  ")}
+                  </div>
+                  <SourcePages sources={m.sources} />
+                </>
               )}
             </div>
           ))}

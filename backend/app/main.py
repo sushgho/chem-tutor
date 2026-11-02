@@ -3,9 +3,9 @@ import urllib.parse
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import course_materials, db, documents, llm, progress, rag
@@ -109,6 +109,26 @@ def study_chapters(
     grade: Literal["XI", "XII"],
 ):
     return {"chapters": course_materials.list_chapters(subject, grade)}
+
+
+@app.get("/study/page-image")
+def study_page_image(
+    subject: Literal["maths", "physics", "chemistry", "biology"],
+    grade: Literal["XI", "XII"],
+    source: str = Query(min_length=1, max_length=255),
+    page: int = Query(ge=1),
+):
+    try:
+        image = course_materials.get_pdf_page(subject, grade, source, page)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if image is None:
+        raise HTTPException(404, "The original textbook PDF is not available.")
+    return Response(
+        image,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.post("/students")

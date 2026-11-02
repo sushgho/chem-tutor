@@ -1,4 +1,7 @@
 """Retrieval for shared subject and class materials."""
+from io import BytesIO
+from urllib.parse import urlencode
+
 from . import rag
 from .config import settings
 from .db import pool
@@ -148,7 +151,49 @@ def retrieve(subject: str, grade: str, query: str, limit: int = 4) -> list[rag.C
                 continue
         elif float(row["dist"]) > settings.max_dist:
             continue
-        chunks.append(
-            rag.Chunk(row["id"], row["content"], row["source"], row["page"], None, float(row["dist"]))
-        )
+        image_url = None
+        if row["page"] is not None:
+            image_url = "/study/page-image?" + urlencode({
+                "subject": subject,
+                "grade": grade,
+                "source": row["source"],
+                "page": row["page"],
+            })
+        chunks.append(rag.Chunk(
+            row["id"], row["content"], row["source"], row["page"], None,
+            float(row["dist"]), image_url,
+        ))
     return chunks
+
+
+def get_pdf_page(subject: str, grade: str, source: str, page_number: int) -> bytes | None:
+    with pool.connection() as conn:
+        row = conn.execute(
+            """SELECT pdf_data FROM course_documents
+               WHERE subject = %s AND grade = %s AND source = %s""",
+            (subject, grade, source),
+        ).fetchone()
+    if not row or not row["pdf_data"]:
+        return None
+
+    import pypdfium2
+
+    pdf = pypdfium2.PdfDocument(row["pdf_data"])
+    try:
+        if page_number > len(pdf):
+            raise ValueError(f"Page {page_number} is outside this document.")
+        page = pdf[page_number - 1]
+        try:
+            width, height = page.get_size()
+            scale = min(2, 2400 / max(width, height))
+            bitmap = page.render(scale=scale)
+            try:
+                with BytesIO() as output:
+                    bitmap.to_pil().save(output, format="PNG")
+                    return output.getvalue()
+            finally:
+                bitmap.close()
+        finally:
+            page.close()
+    finally:
+        pdf.close()

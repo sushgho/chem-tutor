@@ -1,7 +1,9 @@
+from io import BytesIO
 import unittest
 from unittest.mock import patch
 
 from app import course_materials
+from app.rag import Chunk, sources_payload
 
 
 class FakeResult:
@@ -63,6 +65,65 @@ class CourseMaterialRetrievalTests(unittest.TestCase):
             chunks = course_materials.retrieve("biology", "XI", "cell structure")
 
         self.assertEqual([chunk.id for chunk in chunks], [2])
+
+    def test_shared_results_include_original_pdf_page_urls(self):
+        with (
+            patch.object(course_materials, "pool", FakePool()),
+            patch.object(course_materials, "embed_query", return_value=[]),
+            patch.object(course_materials.settings, "embedding_mode", "keyword"),
+        ):
+            chunks = course_materials.retrieve("biology", "XI", "cell structure")
+
+        self.assertEqual(
+            chunks[0].image_url,
+            "/study/page-image?subject=biology&grade=XI&source=biology.pdf&page=2",
+        )
+
+
+class SharedPdfPageTests(unittest.TestCase):
+    def setUp(self):
+        from pypdf import PdfWriter
+
+        writer = PdfWriter()
+        writer.add_blank_page(width=612, height=792)
+        output = BytesIO()
+        writer.write(output)
+        self.pdf_data = output.getvalue()
+
+    def test_renders_the_requested_pdf_page_as_png(self):
+        with patch.object(course_materials.pool, "connection") as connection:
+            connection.return_value.__enter__.return_value.execute.return_value.fetchone.return_value = {
+                "pdf_data": self.pdf_data,
+            }
+            image = course_materials.get_pdf_page("biology", "XI", "Biology/book.pdf", 1)
+
+        self.assertTrue(image.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_rejects_a_page_outside_the_pdf(self):
+        with (
+            patch.object(course_materials.pool, "connection") as connection,
+            self.assertRaisesRegex(ValueError, "outside this document"),
+        ):
+            connection.return_value.__enter__.return_value.execute.return_value.fetchone.return_value = {
+                "pdf_data": self.pdf_data,
+            }
+            course_materials.get_pdf_page("biology", "XI", "Biology/book.pdf", 2)
+
+
+class SourcePayloadTests(unittest.TestCase):
+    def test_includes_page_image_link_only_when_available(self):
+        chunk = Chunk(1, "Excerpt", "Biology/book.pdf", 2, None, 0.1, "/study/page-image?page=2")
+
+        self.assertEqual(
+            sources_payload([chunk]),
+            [{
+                "n": 1,
+                "source": "Biology/book.pdf",
+                "page": 2,
+                "topic": None,
+                "image_url": "/study/page-image?page=2",
+            }],
+        )
 
 
 class CourseChapterCatalogTests(unittest.TestCase):

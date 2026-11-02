@@ -48,7 +48,9 @@ the shared course library, which DIVA searches for every learner's lessons and c
 Data files remain Git-ignored and must not be committed. To load shared content into
 production, configure the production `DATABASE_URL` in the local `backend/.env` file
 and set `EMBEDDING_MODE=keyword` to match Render before running the command. Do not
-share the database URL in chat or commit it.
+share the database URL in chat or commit it. The importer stores each unique source PDF
+in PostgreSQL as well as indexing its text, so DIVA can show the full original PDF page
+for matching textbook citations. These source PDFs use additional database storage.
 
 ## 4. Frontend
 ```bash
@@ -68,9 +70,10 @@ Use Chrome or Edge for voice input.
 - **Numericals**: the model has a calculator tool, so arithmetic is computed, not guessed.
 - **Chemistry rendering**: equations with `$\ce{...}$` (mhchem) and LaTeX via KaTeX.
 - **Visual explanations**: lessons and relevant questions can include inline Mermaid
-  flowcharts or concept maps across all subjects; diagrams render visually and are not
-  read aloud. The tutor currently creates diagrams, not generated photographs or other
-  standalone images.
+  flowcharts or concept maps across all subjects. When a shared textbook is cited, the
+  learner can expand its citation to view the exact full PDF page with its original
+  figure and labels. These textbook pages are not read aloud; the tutor does not
+  generate standalone photographs.
 - **Progress**: quiz scores update mastery (0-1) and a spaced-repetition due date;
   doubts per topic are counted. `GET /teacher/overview` lists the topics with the
   most doubts and lowest mastery.

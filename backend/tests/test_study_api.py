@@ -46,6 +46,25 @@ class StudyApiTests(unittest.TestCase):
         self.assertEqual(response.json(), {"chapters": chapters})
         list_chapters.assert_called_once_with("physics", "XI")
 
+    def test_page_image_returns_the_rendered_png(self):
+        with patch.object(main.course_materials, "get_pdf_page", return_value=b"png bytes") as get_page:
+            response = self.client.get(
+                "/study/page-image?subject=biology&grade=XI&source=Biology%2Fkebo106.pdf&page=2"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/png")
+        self.assertEqual(response.content, b"png bytes")
+        get_page.assert_called_once_with("biology", "XI", "Biology/kebo106.pdf", 2)
+
+    def test_page_image_returns_not_found_when_pdf_is_not_imported(self):
+        with patch.object(main.course_materials, "get_pdf_page", return_value=None):
+            response = self.client.get(
+                "/study/page-image?subject=biology&grade=XI&source=Biology%2Fmissing.pdf&page=2"
+            )
+
+        self.assertEqual(response.status_code, 404)
+
     def test_upload_endpoint_accepts_supported_file_and_library_key(self):
         saved = {"id": 9, "filename": "notes.txt", "subject": "biology", "chunks": 1}
         with patch.object(main.documents, "create_document", return_value=saved) as create:

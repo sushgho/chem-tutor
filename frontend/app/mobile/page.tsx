@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Markdown from "@/components/Markdown";
+import SourcePages from "@/components/SourcePages";
 import { deleteJSON, getJSON, postJSON, streamPost, uploadFile, type Source } from "@/lib/api";
 import { listenOnce, Speaker } from "@/lib/speech";
 import styles from "./mobile-teacher-app.module.css";
@@ -626,9 +627,12 @@ export default function MobileTeacherApp() {
             )}
             <Markdown>{message.content || "…"}</Markdown>
             {message.sources && message.sources.length > 0 && (
+              <>
               <p className={styles.sources}>
                 Sources: {message.sources.map((source) => `[${source.n}] ${source.source}${source.page ? ` p.${source.page}` : ""}`).join(" · ")}
               </p>
+              <SourcePages sources={message.sources} />
+              </>
             )}
           </article>
         ))}
