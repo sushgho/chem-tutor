@@ -2,11 +2,11 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    id: "/mobile",
+    id: "/",
     name: "Chemistry Tutor - Mobile Teacher",
     short_name: "Chem Tutor",
     description: "An AI chemistry teacher for Classes XI-XII.",
-    start_url: "/mobile",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

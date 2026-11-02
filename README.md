@@ -126,12 +126,14 @@ This keeps only one service on Render's free compute quota. To create a prototyp
    in GitHub.
 4. Import the same GitHub repository into [Vercel](https://vercel.com/), set the
    project root to `frontend`, and add `BACKEND_URL` as a server-side environment
-   variable with the Render backend's public HTTPS URL. Deploy the site; its Vercel
-   URL is the link to share, with `/mobile` at the end.
+   variable with the Render backend's public HTTPS URL. Deploy the site; its root URL
+   opens the mobile tutor. To use a custom domain, add it under the Vercel project's
+   **Settings → Domains**, then configure the DNS records Vercel provides at the
+   domain registrar.
 5. Ingest licensed teaching material into Neon. From `backend/`, install
    `requirements-free.txt`, set `EMBEDDING_MODE=keyword` and `DATABASE_URL` to the same
    Neon connection string, then run `python -m app.ingest <file> --grade XI --unit 1`.
-6. Test `<vercel-url>/mobile`, curriculum, lessons, and quizzes.
+6. Test the Vercel root URL, `/mobile`, curriculum, lessons, and quizzes.
 
 This is a hobby prototype, not a production hosting guarantee. Render's free backend
 sleeps after inactivity and can take about a minute to wake. Render's free plan has
