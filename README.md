@@ -67,8 +67,10 @@ Use Chrome or Edge for voice input.
   says "the material doesn't cover this" instead of guessing.
 - **Numericals**: the model has a calculator tool, so arithmetic is computed, not guessed.
 - **Chemistry rendering**: equations with `$\ce{...}$` (mhchem) and LaTeX via KaTeX.
-- **Visual explanations**: lessons and relevant doubts can include inline Mermaid
-  flowcharts or concept maps; diagram code is rendered visually and not read aloud.
+- **Visual explanations**: lessons and relevant questions can include inline Mermaid
+  flowcharts or concept maps across all subjects; diagrams render visually and are not
+  read aloud. The tutor currently creates diagrams, not generated photographs or other
+  standalone images.
 - **Progress**: quiz scores update mastery (0-1) and a spaced-repetition due date;
   doubts per topic are counted. `GET /teacher/overview` lists the topics with the
   most doubts and lowest mastery.

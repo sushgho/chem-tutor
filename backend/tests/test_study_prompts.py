@@ -29,6 +29,14 @@ class StudyPromptTests(unittest.TestCase):
         self.assertIn("Do not reveal the answer", check)
         self.assertIn("When the learner answers your check question", system)
 
+    def test_all_subjects_get_guidance_for_useful_rendered_diagrams(self):
+        for subject in ("maths", "physics", "chemistry", "biology"):
+            with self.subTest(subject=subject):
+                system = study_teacher_system(subject, "XI")
+                self.assertIn("Mermaid flowchart or concept map", system)
+                self.assertIn("```mermaid", system)
+                self.assertIn("Do not force a diagram", system)
+
 
 if __name__ == "__main__":
     unittest.main()
