@@ -440,6 +440,34 @@
   margin: .35em 0;
 }
 
+.message :global(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: .92em;
+}
+
+.message :global(th),
+.message :global(td) {
+  padding: 8px 10px;
+  border: 1px solid #dce3eb;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.message :global(th) {
+  background: #e7eef7;
+  font-weight: 700;
+}
+
+.message :global(tbody tr:nth-child(even)) {
+  background: #f8fafc;
+}
+
 .message :global(pre) {
   max-width: 100%;
   overflow-x: auto;
