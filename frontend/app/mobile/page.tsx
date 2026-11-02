@@ -20,7 +20,12 @@ type Prog = {
   summary: Record<string, { total: number; mastered: number }>;
   due_for_revision: string[];
 };
-type Msg = { role: "user" | "assistant"; content: string; sources?: Source[] };
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  sources?: Source[];
+  openSourcePages?: boolean;
+};
 type QuizItem = { q: string; options: string[]; answer: number; explanation: string };
 type QuizState = { items: QuizItem[]; picks: (number | null)[]; done: boolean };
 
@@ -196,13 +201,13 @@ export default function MobileTeacherApp() {
     setError("");
   }
 
-  async function run(path: string, body: unknown, studyKey?: string) {
+  async function run(path: string, body: unknown, studyKey?: string, openSourcePages = false) {
     setBusy(true);
     setError("");
     speaker.current?.stop();
     const controller = new AbortController();
     abort.current = controller;
-    setMsgs((current) => [...current, { role: "assistant", content: "" }]);
+    setMsgs((current) => [...current, { role: "assistant", content: "", openSourcePages }]);
     try {
       await streamPost(
         path,
@@ -284,6 +289,8 @@ export default function MobileTeacherApp() {
     setQuiz(null);
     setMsgs((current) => [...current, { role: "user", content: question.trim() }]);
     setInput("");
+    const showSourcePages =
+      /\b(?:figure|figures|image|images|diagram|diagrams|illustration|illustrations|picture|pictures)\b/i.test(question);
     void run("/study/chat", {
       student_id: studentId,
       subject,
@@ -293,7 +300,7 @@ export default function MobileTeacherApp() {
       question: question.trim(),
       mode,
       history,
-    }, libraryKey);
+    }, libraryKey, showSourcePages);
   }
 
   function runStudyMode(mode: Exclude<StudyMode, "chat">, prompt: string) {
@@ -631,7 +638,7 @@ export default function MobileTeacherApp() {
               <p className={styles.sources}>
                 Sources: {message.sources.map((source) => `[${source.n}] ${source.source}${source.page ? ` p.${source.page}` : ""}`).join(" · ")}
               </p>
-              <SourcePages sources={message.sources} />
+              <SourcePages sources={message.sources} openByDefault={message.openSourcePages} />
               </>
             )}
           </article>

@@ -1,6 +1,12 @@
 import { API, type Source } from "@/lib/api";
 
-export default function SourcePages({ sources }: { sources: Source[] }) {
+export default function SourcePages({
+  sources,
+  openByDefault = false,
+}: {
+  sources: Source[];
+  openByDefault?: boolean;
+}) {
   const uniquePages = new Map<string, Source>();
   for (const source of sources) {
     if (source.image_url) uniquePages.set(source.image_url, source);
@@ -11,7 +17,7 @@ export default function SourcePages({ sources }: { sources: Source[] }) {
   return (
     <div className="source-pages">
       {pages.map((source) => (
-        <details key={source.image_url}>
+        <details key={source.image_url} open={openByDefault}>
           <summary>
             View original textbook page{source.page ? ` ${source.page}` : ""}
           </summary>
