@@ -5,9 +5,6 @@ module.exports = {
   compress: false, // keep streamed answers unbuffered
   experimental: { proxyTimeout: 180000 },
   async rewrites() {
-    return {
-      beforeFiles: [{ source: "/", destination: "/mobile" }],
-      afterFiles: [{ source: "/api/:path*", destination: `${BACKEND}/:path*` }],
-    };
+    return [{ source: "/api/:path*", destination: `${BACKEND}/:path*` }];
   },
 };
