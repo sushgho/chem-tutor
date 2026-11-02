@@ -1,5 +1,6 @@
 """Retrieval for shared subject and class materials."""
 from io import BytesIO
+import re
 from urllib.parse import urlencode
 
 from . import rag
@@ -82,6 +83,10 @@ CLASS_XI_CHAPTER_TITLES = {
         22: "Chemical Coordination and Integration",
     },
 }
+SECTION_HEADING = re.compile(r"^\s*(\d+)\.(\d+(?:\.\d+)?)\s+([^\W\d_].*?)\s*$")
+INCOMPLETE_HEADING = re.compile(r"\b(?:and|as|at|by|for|from|in|into|of|on|the|to|with|its)$", re.IGNORECASE)
+LOWERCASE_CONTINUATION = re.compile(r"^[a-z][a-z -]{0,39}$")
+EXERCISE_HEADING = re.compile(r"^\s*(?:MISCELLANEOUS\s+)?EXERCISES?\b(?:\s+(\d+)\.(\d+))?", re.IGNORECASE)
 
 
 def list_chapters(subject: str, grade: str) -> list[dict]:
@@ -104,6 +109,72 @@ def list_chapters(subject: str, grade: str) -> list[dict]:
         )
         chapters.setdefault(chapter_no, {"chapter_no": chapter_no, "title": title})
     return list(chapters.values())
+
+
+def list_topics(subject: str, grade: str, chapter_no: int) -> list[dict]:
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """SELECT d.id AS document_id, c.content
+               FROM course_document_chunks c
+               JOIN course_documents d ON d.id = c.document_id
+               WHERE d.subject = %s AND d.grade = %s AND d.chapter_no = %s
+               ORDER BY d.id, c.page, c.id""",
+            (subject, grade, chapter_no),
+        ).fetchall()
+
+    topics: dict[str, str] = {}
+    exercised_sections: set[str] = set()
+    document_id = None
+    exercises_started = False
+    for row in rows:
+        if row["document_id"] != document_id:
+            document_id = row["document_id"]
+            exercised_sections = set()
+            exercises_started = False
+        lines = [re.sub(r"\s+", " ", line).strip() for line in row["content"].splitlines()]
+        for index, line in enumerate(lines):
+            exercise = EXERCISE_HEADING.match(line)
+            if exercise:
+                if exercise.group(1) and int(exercise.group(1)) == chapter_no:
+                    exercised_sections.add(f"{exercise.group(1)}.{exercise.group(2)}")
+                else:
+                    exercises_started = True
+                continue
+
+            match = SECTION_HEADING.match(line)
+            if (
+                not match
+                or exercises_started
+                or int(match.group(1)) != chapter_no
+            ):
+                continue
+
+            title = match.group(3).strip(" .:-")
+            next_index = index + 1
+            while next_index < len(lines) and lines[next_index]:
+                next_line = lines[next_index]
+                if (
+                    SECTION_HEADING.match(next_line)
+                    or re.match(r"^\d+[.)]", next_line)
+                    or len(next_line) > 80
+                    or not (
+                        INCOMPLETE_HEADING.search(title)
+                        or LOWERCASE_CONTINUATION.fullmatch(next_line)
+                    )
+                ):
+                    break
+                title = f"{title} {next_line}".strip()
+                next_index += 1
+
+            section_no = f"{match.group(1)}.{match.group(2)}"
+            if section_no not in exercised_sections and title and len(title) <= 160:
+                if len(title) > len(topics.get(section_no, "")):
+                    topics[section_no] = title
+
+    return [
+        {"section_no": section_no, "title": title}
+        for section_no, title in sorted(topics.items(), key=lambda item: tuple(map(int, item[0].split("."))))
+    ]
 
 
 def retrieve(subject: str, grade: str, query: str, limit: int = 4) -> list[rag.Chunk]:

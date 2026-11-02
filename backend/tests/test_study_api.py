@@ -48,6 +48,15 @@ class StudyApiTests(unittest.TestCase):
         self.assertEqual(response.json(), {"chapters": chapters})
         list_chapters.assert_called_once_with("physics", "XI")
 
+    def test_topic_catalog_returns_selectable_sections_for_a_chapter(self):
+        topics = [{"section_no": "1.1", "title": "Introduction"}]
+        with patch.object(main.course_materials, "list_topics", return_value=topics) as list_topics:
+            response = self.client.get("/study/topics?subject=physics&grade=XI&chapter_no=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"topics": topics})
+        list_topics.assert_called_once_with("physics", "XI", 1)
+
     def test_page_image_returns_the_rendered_png(self):
         with patch.object(main.course_materials, "get_pdf_page", return_value=b"png bytes") as get_page:
             response = self.client.get(

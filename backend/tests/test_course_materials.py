@@ -149,6 +149,31 @@ class CourseChapterCatalogTests(unittest.TestCase):
 
         self.assertEqual(chapters, rows)
 
+    def test_lists_numbered_topics_for_the_selected_chapter(self):
+        rows = [
+            {
+                "document_id": 1,
+                "content": (
+                    "1.1 INTRODUCTION\n1.2 THE INTER\n"
+                    "1.2 THE INTERNATIONAL SYSTEM OF\nUNITS\n1.2.1 Base quantities\n"
+                    "1.3 Dimensions of physical\nquantities\n"
+                    "EXERCISE 1.1\n1.1 Fill in the blanks\n1.3 Significant figures\n"
+                    "EXERCISES\n1.4 This is a question, not a topic"
+                ),
+            },
+            {"document_id": 1, "content": "1.1 Introduction to measurement\n2.1 A different chapter"},
+        ]
+        with patch.object(course_materials.pool, "connection") as connection:
+            connection.return_value.__enter__.return_value.execute.return_value.fetchall.return_value = rows
+            topics = course_materials.list_topics("physics", "XI", 1)
+
+        self.assertEqual(topics, [
+            {"section_no": "1.1", "title": "INTRODUCTION"},
+            {"section_no": "1.2", "title": "THE INTERNATIONAL SYSTEM OF UNITS"},
+            {"section_no": "1.2.1", "title": "Base quantities"},
+            {"section_no": "1.3", "title": "Dimensions of physical quantities"},
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -126,6 +126,15 @@ def study_chapters(
     return {"chapters": course_materials.list_chapters(subject, grade)}
 
 
+@app.get("/study/topics")
+def study_topics(
+    subject: Literal["maths", "physics", "chemistry", "biology"],
+    grade: Literal["XI", "XII"],
+    chapter_no: int = Query(ge=1, le=99),
+):
+    return {"topics": course_materials.list_topics(subject, grade, chapter_no)}
+
+
 @app.get("/study/page-image")
 def study_page_image(
     subject: Literal["maths", "physics", "chemistry", "biology"],

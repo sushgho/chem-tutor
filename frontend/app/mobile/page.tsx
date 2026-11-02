@@ -14,6 +14,7 @@ type StudyDocument = { id: number; filename: string; created_at: string };
 type Topic = { id: string; title: string };
 type Unit = { unit_no: number; title: string; periods: number; topics: Topic[] };
 type ChapterChoice = { chapter_no: number; title: string };
+type SectionTopic = { section_no: string; title: string };
 type Tree = Record<string, Unit[]>;
 type Prog = {
   topics: Record<string, { status: string; mastery: number; doubts_count: number; due: boolean }>;
@@ -34,8 +35,11 @@ export default function MobileTeacherApp() {
   const [grade, setGrade] = useState("XI");
   const [unitNo, setUnitNo] = useState<number | null>(null);
   const [topic, setTopic] = useState<{ id: string; title: string; unit: string } | null>(null);
-  const [chapterTopic, setChapterTopic] = useState("");
   const [chapterChoices, setChapterChoices] = useState<ChapterChoice[]>([]);
+  const [chapterNo, setChapterNo] = useState<number | null>(null);
+  const [sectionTopics, setSectionTopics] = useState<SectionTopic[]>([]);
+  const [sectionTopicNo, setSectionTopicNo] = useState("");
+  const [topicsLoading, setTopicsLoading] = useState(false);
   const [studentId, setStudentId] = useState<number | null>(null);
   const [libraryKey, setLibraryKey] = useState("");
   const [prog, setProg] = useState<Prog | null>(null);
@@ -57,8 +61,16 @@ export default function MobileTeacherApp() {
   const units = tree[grade] || [];
   const selectedUnit = units.find((unit) => unit.unit_no === unitNo) ?? null;
   const selectedTopic = selectedUnit?.topics.find((item) => item.id === topic?.id) ?? null;
+  const selectedChapter = chapterChoices.find((item) => item.chapter_no === chapterNo) ?? null;
+  const selectedSectionTopic = sectionTopics.find((item) => item.section_no === sectionTopicNo) ?? null;
   const subjectName = subject === "maths" ? "Maths" : subject[0].toUpperCase() + subject.slice(1);
-  const activeTopicTitle = subject === "chemistry" ? topic?.title ?? "" : chapterTopic.trim();
+  const activeTopicTitle = subject === "chemistry"
+    ? topic?.title ?? ""
+    : selectedChapter
+      ? selectedSectionTopic
+        ? `${selectedChapter.title}: ${selectedSectionTopic.title}`.slice(0, 160)
+        : selectedChapter.title
+      : "";
 
   useEffect(() => {
     const activeSpeaker = new Speaker(setSpeaking);
@@ -142,7 +154,10 @@ export default function MobileTeacherApp() {
   useEffect(() => {
     let active = true;
     setChapterChoices([]);
-    setChapterTopic("");
+    setChapterNo(null);
+    setSectionTopics([]);
+    setSectionTopicNo("");
+    setTopicsLoading(false);
     if (subject === "chemistry") return () => { active = false; };
     void getJSON<{ chapters: ChapterChoice[] }>(
       `/study/chapters?subject=${subject}&grade=${grade}`,
@@ -153,6 +168,29 @@ export default function MobileTeacherApp() {
     });
     return () => { active = false; };
   }, [subject, grade]);
+
+  useEffect(() => {
+    let active = true;
+    setSectionTopics([]);
+    setSectionTopicNo("");
+    setTopicsLoading(false);
+    if (subject === "chemistry" || chapterNo === null) return () => { active = false; };
+    setTopicsLoading(true);
+    void getJSON<{ topics: SectionTopic[] }>(
+      `/study/topics?subject=${subject}&grade=${grade}&chapter_no=${chapterNo}`,
+    ).then(({ topics }) => {
+      if (active) {
+        setSectionTopics(topics);
+        setTopicsLoading(false);
+      }
+    }).catch((e: unknown) => {
+      if (active) {
+        setError(e instanceof Error ? e.message : "Couldn't load the topic list.");
+        setTopicsLoading(false);
+      }
+    });
+    return () => { active = false; };
+  }, [subject, grade, chapterNo]);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -193,7 +231,10 @@ export default function MobileTeacherApp() {
     speaker.current?.stop();
     setSubject(nextSubject);
     setTopic(null);
-    setChapterTopic("");
+    setChapterNo(null);
+    setSectionTopics([]);
+    setSectionTopicNo("");
+    setTopicsLoading(false);
     setMsgs([]);
     setQuiz(null);
     setBusy(false);
@@ -460,6 +501,8 @@ export default function MobileTeacherApp() {
               onClick={() => {
                 setGrade(className);
                 setUnitNo(null);
+                setChapterNo(null);
+                setSectionTopicNo("");
                 chooseTopic(undefined);
               }}
             >
@@ -511,32 +554,46 @@ export default function MobileTeacherApp() {
           <label>
             <span>Chapter</span>
             <select
-              value={chapterChoices.some((item) => item.title === chapterTopic) ? chapterTopic : ""}
-              onChange={(event) => setChapterTopic(event.target.value)}
+              value={chapterNo ?? ""}
+              onChange={(event) => {
+                setChapterNo(event.target.value ? Number(event.target.value) : null);
+                setSectionTopicNo("");
+              }}
               aria-label={`${subjectName} chapter`}
             >
               <option value="">
                 {chapterChoices.length ? "Choose a chapter" : "No shared chapters indexed for this class"}
               </option>
               {chapterChoices.map((item) => (
-                <option key={`${item.chapter_no}-${item.title}`} value={item.title}>
+                <option key={`${item.chapter_no}-${item.title}`} value={item.chapter_no}>
                   {item.chapter_no}. {item.title}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            <span>Or enter another topic</span>
-            <input
-              value={chapterChoices.some((item) => item.title === chapterTopic) ? "" : chapterTopic}
-              onChange={(event) => setChapterTopic(event.target.value)}
-              placeholder={
-                subject === "maths" ? "e.g., Quadratic equations" :
-                  subject === "physics" ? "e.g., Laws of motion" : "e.g., Cell structure"
-              }
-              maxLength={160}
-              aria-label={`${subjectName} chapter or topic`}
-            />
+            <span>Topic (optional)</span>
+            <select
+              value={sectionTopicNo}
+              onChange={(event) => setSectionTopicNo(event.target.value)}
+              disabled={!selectedChapter || topicsLoading || !sectionTopics.length}
+              aria-label={`${subjectName} topic`}
+            >
+              <option value="">
+                {!selectedChapter
+                  ? "Choose a chapter first"
+                  : topicsLoading
+                    ? "Loading topics…"
+                    : sectionTopics.length
+                      ? "Ask across this chapter"
+                      : "No topics indexed for this chapter"}
+              </option>
+              {sectionTopics.map((item) => (
+                <option key={item.section_no} value={item.section_no}>
+                  {item.section_no} {item.title}
+                </option>
+              ))}
+            </select>
           </label>
         </section>
       )}
@@ -565,8 +622,8 @@ export default function MobileTeacherApp() {
         />
         <div className={styles.teacherInfo}>
           <p className={styles.eyebrow}>{listening ? "LISTENING…" : speaking ? "SPEAKING…" : `${subjectName.toUpperCase()} TUTOR`}</p>
-          <h2>{topic?.title ?? (chapterTopic.trim() || `Ready to study ${subjectName}`)}</h2>
-          <p>{topic?.unit ?? (chapterTopic.trim() ? "Chapter or topic" : "Ask a question, upload notes, or practise for NEET/JEE.")}</p>
+          <h2>{topic?.title ?? selectedSectionTopic?.title ?? selectedChapter?.title ?? `Ready to study ${subjectName}`}</h2>
+          <p>{topic?.unit ?? (selectedSectionTopic ? selectedChapter?.title : selectedChapter ? "Chapter" : "Ask a question, upload notes, or practise for NEET/JEE.")}</p>
         </div>
       </section>
 
