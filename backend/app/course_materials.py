@@ -87,6 +87,7 @@ SECTION_HEADING = re.compile(r"^\s*(\d+)\.(\d+(?:\.\d+)?)\s+([^\W\d_].*?)\s*$")
 INCOMPLETE_HEADING = re.compile(r"\b(?:and|as|at|by|for|from|in|into|of|on|the|to|with|its)$", re.IGNORECASE)
 LOWERCASE_CONTINUATION = re.compile(r"^[a-z][a-z -]{0,39}$")
 EXERCISE_HEADING = re.compile(r"^\s*(?:MISCELLANEOUS\s+)?EXERCISES?\b(?:\s+(\d+)\.(\d+))?", re.IGNORECASE)
+INLINE_BODY_START = re.compile(r"\s+(?:Let|The|A|An|It|If|Thus|We|For|Suppose|Consider|To|Since|In|This|These)\b")
 
 
 def list_chapters(subject: str, grade: str) -> list[dict]:
@@ -150,6 +151,9 @@ def list_topics(subject: str, grade: str, chapter_no: int) -> list[dict]:
                 continue
 
             title = match.group(3).strip(" .:-")
+            body_start = INLINE_BODY_START.search(title)
+            if body_start:
+                title = title[:body_start.start()].rstrip(" .:-")
             next_index = index + 1
             while next_index < len(lines) and lines[next_index]:
                 next_line = lines[next_index]

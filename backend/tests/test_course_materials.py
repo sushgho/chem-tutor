@@ -157,6 +157,7 @@ class CourseChapterCatalogTests(unittest.TestCase):
                     "1.1 INTRODUCTION\n1.2 THE INTER\n"
                     "1.2 THE INTERNATIONAL SYSTEM OF\nUNITS\n1.2.1 Base quantities\n"
                     "1.3 Dimensions of physical\nquantities\n"
+                    "1.4 Union of sets Let A and B be any two sets.\n"
                     "EXERCISE 1.1\n1.1 Fill in the blanks\n1.3 Significant figures\n"
                     "EXERCISES\n1.4 This is a question, not a topic"
                 ),
@@ -172,6 +173,7 @@ class CourseChapterCatalogTests(unittest.TestCase):
             {"section_no": "1.2", "title": "THE INTERNATIONAL SYSTEM OF UNITS"},
             {"section_no": "1.2.1", "title": "Base quantities"},
             {"section_no": "1.3", "title": "Dimensions of physical quantities"},
+            {"section_no": "1.4", "title": "Union of sets"},
         ])
 
 
