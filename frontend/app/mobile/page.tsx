@@ -24,7 +24,6 @@ type Msg = {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
-  openSourcePages?: boolean;
 };
 type QuizItem = { q: string; options: string[]; answer: number; explanation: string };
 type QuizState = { items: QuizItem[]; picks: (number | null)[]; done: boolean };
@@ -201,13 +200,13 @@ export default function MobileTeacherApp() {
     setError("");
   }
 
-  async function run(path: string, body: unknown, studyKey?: string, openSourcePages = false) {
+  async function run(path: string, body: unknown, studyKey?: string) {
     setBusy(true);
     setError("");
     speaker.current?.stop();
     const controller = new AbortController();
     abort.current = controller;
-    setMsgs((current) => [...current, { role: "assistant", content: "", openSourcePages }]);
+    setMsgs((current) => [...current, { role: "assistant", content: "" }]);
     try {
       await streamPost(
         path,
@@ -289,8 +288,6 @@ export default function MobileTeacherApp() {
     setQuiz(null);
     setMsgs((current) => [...current, { role: "user", content: question.trim() }]);
     setInput("");
-    const showSourcePages =
-      /\b(?:figure|figures|image|images|diagram|diagrams|illustration|illustrations|picture|pictures)\b/i.test(question);
     void run("/study/chat", {
       student_id: studentId,
       subject,
@@ -300,7 +297,7 @@ export default function MobileTeacherApp() {
       question: question.trim(),
       mode,
       history,
-    }, libraryKey, showSourcePages);
+    }, libraryKey);
   }
 
   function runStudyMode(mode: Exclude<StudyMode, "chat">, prompt: string) {
@@ -624,25 +621,32 @@ export default function MobileTeacherApp() {
             {" Upload notes for material-specific explanations and citations."}
           </p>
         )}
-        {msgs.map((message, index) => (
-          <article key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : ""}`}>
-            <span className={styles.messageRole}>{message.role === "user" ? "You" : "DIVA"}</span>
-            {message.role === "assistant" && message.content && !busy && (
-              <button className={styles.listenButton} type="button" onClick={() => speakMessage(message.content)}>
-                Listen
-              </button>
-            )}
-            <Markdown>{message.content || "…"}</Markdown>
-            {message.sources && message.sources.length > 0 && (
-              <>
-              <p className={styles.sources}>
-                Sources: {message.sources.map((source) => `[${source.n}] ${source.source}${source.page ? ` p.${source.page}` : ""}`).join(" · ")}
-              </p>
-              <SourcePages sources={message.sources} openByDefault={message.openSourcePages} />
-              </>
-            )}
-          </article>
-        ))}
+        {msgs.map((message, index) => {
+          const previousMessage = msgs[index - 1];
+          const asksForSourcePage =
+            message.role === "assistant" &&
+            previousMessage?.role === "user" &&
+            /\b(?:figure|figures|image|images|diagram|diagrams|illustration|illustrations|picture|pictures)\b/i.test(previousMessage.content);
+          return (
+            <article key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : ""}`}>
+              <span className={styles.messageRole}>{message.role === "user" ? "You" : "DIVA"}</span>
+              {message.role === "assistant" && message.content && !busy && (
+                <button className={styles.listenButton} type="button" onClick={() => speakMessage(message.content)}>
+                  Listen
+                </button>
+              )}
+              <Markdown>{message.content || "…"}</Markdown>
+              {message.sources && message.sources.length > 0 && (
+                <>
+                  <p className={styles.sources}>
+                    Sources: {message.sources.map((source) => `[${source.n}] ${source.source}${source.page ? ` p.${source.page}` : ""}`).join(" · ")}
+                  </p>
+                  <SourcePages sources={message.sources} openByDefault={asksForSourcePage} />
+                </>
+              )}
+            </article>
+          );
+        })}
         {quiz && (
           <section className={styles.quiz} aria-label="Quick check quiz">
             <h3>Quick check</h3>
