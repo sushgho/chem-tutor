@@ -1,4 +1,6 @@
-﻿import unittest
+import json
+import unittest
+import urllib.parse
 from unittest.mock import patch
 from uuid import UUID
 
@@ -152,6 +154,41 @@ class StudyApiTests(unittest.TestCase):
         main.course_materials.retrieve.assert_called_once_with(
             "physics", "XI", "Laws of motion Teach this chapter with an example.", limit=3
         )
+
+    def test_figure_request_retries_shared_retrieval_with_figure_subject_terms(self):
+        request = {
+            "student_id": 8,
+            "subject": "biology",
+            "grade": "XI",
+            "topic_title": "Anatomy of Flowering Plants",
+            "question": "Show me the original textbook page with Figure 6.1 showing stomata and guard cells.",
+            "mode": "chat",
+        }
+        page_chunk = main.rag.Chunk(
+            1,
+            "Figure 6.1 shows stomata and guard cells.",
+            "Biology/kebo106.pdf",
+            2,
+            None,
+            0.1,
+            "/study/page-image?subject=biology&grade=XI&source=Biology%2Fkebo106.pdf&page=2",
+        )
+        with (
+            patch.object(main.course_materials, "retrieve", side_effect=[[], [page_chunk]]) as retrieve,
+            patch.object(main.documents, "retrieve", return_value=[]),
+            patch.object(main.progress, "log_message"),
+            patch.object(main.llm, "stream_answer", return_value=iter(["Expand the source page below."])),
+        ):
+            response = self.client.post(
+                "/study/chat",
+                json=request,
+                headers={"X-Study-Library-Key": LIBRARY_KEY},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(retrieve.call_args_list[1].args[2], "stomata guard cells")
+        sources = json.loads(urllib.parse.unquote(response.headers["X-Sources"]))
+        self.assertEqual(sources[0]["image_url"], page_chunk.image_url)
 
 
 if __name__ == "__main__":

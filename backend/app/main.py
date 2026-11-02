@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.parse
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -40,6 +41,20 @@ def _topic_or_404(topic_id: str):
 def _stream(gen, chunks):
     headers = {"X-Sources": urllib.parse.quote(json.dumps(rag.sources_payload(chunks)))}
     return StreamingResponse(gen, media_type="text/plain; charset=utf-8", headers=headers)
+
+
+def _source_page_search_query(question: str) -> str:
+    query = re.sub(r"\b\d+(?:\.\d+)*\b", " ", question)
+    query = re.sub(r"[^\w\s-]", " ", query)
+    query = re.sub(
+        r"\b(?:a|an|and|can|chapter|exact|figure|figures|for|from|help|i|image|images|"
+        r"in|include|me|of|original|page|pages|picture|pictures|please|show|showing|"
+        r"the|textbook|this|to|view|with|you)\b",
+        " ",
+        query,
+        flags=re.IGNORECASE,
+    )
+    return " ".join(query.split())
 
 
 # ---------- models ----------
@@ -218,6 +233,19 @@ def study_chat(
     else:
         uploaded_chunks = documents.retrieve(body.student_id, key, body.subject, query, limit=3)
     chunks = course_materials.retrieve(body.subject, body.grade, query, limit=3)
+    if re.search(
+        r"\b(?:figure|figures|image|images|diagram|diagrams|illustration|illustrations|picture|pictures)\b",
+        body.question,
+        re.IGNORECASE,
+    ):
+        page_query = _source_page_search_query(body.question)
+        if page_query:
+            page_chunks = course_materials.retrieve(body.subject, body.grade, page_query, limit=3)
+            existing_pages = {(chunk.source, chunk.page) for chunk in chunks}
+            chunks.extend(
+                chunk for chunk in page_chunks
+                if (chunk.source, chunk.page) not in existing_pages
+            )
     chunks.extend(uploaded_chunks)
     if body.subject == "chemistry":
         if topic:
