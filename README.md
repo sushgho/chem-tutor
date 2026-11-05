@@ -76,7 +76,9 @@ Use Chrome or Edge for voice input.
 - **Doubt mode**: questions retrieve from the current unit first, then widen to the
   whole class. Chunks that are too far from the question are dropped, so the tutor
   says "the material doesn't cover this" instead of guessing.
-- **Numericals**: the model has a calculator tool, so arithmetic is computed, not guessed.
+- **Numericals**: the model uses calculator and exact fraction-simplifier tools, shows
+  steps, verifies fractions are reduced and equivalent, checks probabilities stay in
+  range, and boxes final math answers.
 - **Chemistry rendering**: equations with `$\ce{...}$` (mhchem) and LaTeX via KaTeX.
 - **Visual explanations**: lessons and relevant questions can include inline Mermaid
   flowcharts or concept maps across all subjects. When a shared textbook is cited, the

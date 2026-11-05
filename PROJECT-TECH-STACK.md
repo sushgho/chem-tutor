@@ -71,6 +71,11 @@ and full-text search; a separate managed vector database or RAG framework is not
 The lightweight Render configuration uses keyword embedding mode. The local/full
 requirements also include sentence-transformers for semantic embedding mode.
 
+The tutor exposes two bounded model tools in `backend/app/llm.py`: an arithmetic
+calculator and an exact integer fraction simplifier that reduces with GCD and checks
+equivalence. Math-capable answers are instructed to show their work, validate
+probability bounds, and box the final result.
+
 ## External APIs and services
 
 ### Groq API

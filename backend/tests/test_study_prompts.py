@@ -21,6 +21,21 @@ class StudyPromptTests(unittest.TestCase):
         self.assertIn("explain it immediately in plain language", system)
         self.assertIn("Do not write awkward prose", system)
 
+    def test_math_validation_rules_apply_to_all_subjects_and_chemistry(self):
+        from app.llm import teacher_system
+
+        systems = [
+            study_teacher_system(subject, "XI")
+            for subject in ("maths", "physics", "chemistry", "biology")
+        ] + [teacher_system("XI")]
+        for system in systems:
+            with self.subTest(system=system[:40]):
+                self.assertIn("show the solution step by step", system)
+                self.assertIn("fraction_simplifier tool", system)
+                self.assertRegex(system.lower(), r"fraction.*(?:reduc|simplif)|(?:reduc|simplif).*fraction")
+                self.assertIn("between 0 and 1 inclusive", system)
+                self.assertIn("boxed{...}", system)
+
     def test_subject_and_exam_modes_are_specific(self):
         prompt = study_prompt("Make a set", "[1] (notes.txt)\nVectors", "maths", "jee")
         self.assertIn("SUBJECT: maths", prompt)
