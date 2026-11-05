@@ -7,11 +7,12 @@ MATH_ANSWER_VALIDATION_RULES = (
     "For every mathematics problem, show the solution step by step. Clearly "
     "distinguish intermediate calculations from the final answer. Simplify every "
     "fraction to lowest terms using the greatest common divisor, and verify that "
-    "the simplified fraction is equivalent to the original. Never leave a "
-    "reducible fraction unsimplified. For probability questions, verify that the "
+    "the simplified fraction is equivalent to the original. Use the "
+    "fraction_simplifier tool when available. Never leave a reducible fraction "
+    "unsimplified. For probability questions, verify that the "
     "final probability is between 0 and 1 inclusive. Put the final answer in a "
     "boxed mathematical format, for example: 24/132600 = 4/22100 = 1/5525, "
-    "Final Answer: $\\boxed{1/5525}$."
+    
 )
 
 
