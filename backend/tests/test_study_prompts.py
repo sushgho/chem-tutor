@@ -34,7 +34,10 @@ class StudyPromptTests(unittest.TestCase):
                 self.assertIn("fraction_simplifier tool", system)
                 self.assertRegex(system.lower(), r"fraction.*(?:reduc|simplif)|(?:reduc|simplif).*fraction")
                 self.assertIn("between 0 and 1 inclusive", system)
-                self.assertIn("boxed{...}", system)
+                self.assertIn("boxed mathematical format", system)
+                self.assertIn("distinguish intermediate calculations from the final answer", system)
+                self.assertIn("verify that the simplified fraction is equivalent", system)
+                self.assertIn("Final Answer:", system)
 
     def test_subject_and_exam_modes_are_specific(self):
         prompt = study_prompt("Make a set", "[1] (notes.txt)\nVectors", "maths", "jee")
