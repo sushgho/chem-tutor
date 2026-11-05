@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import PwaServiceWorker from "@/components/PwaServiceWorker";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata = {
   title: "Chemistry Tutor",
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <PwaServiceWorker />
         {children}
+        <Analytics />
       </body>
     </html>
   );
