@@ -373,6 +373,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_REQUIRE_SIGN_IN !== "true") return;
     if (!supabase) {
       setLoading(false);
       return;
@@ -403,6 +404,8 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  if (process.env.NEXT_PUBLIC_REQUIRE_SIGN_IN !== "true") return children;
 
   if (loading) {
     return <main className="auth-screen"><p role="status">Checking your sign-in…</p></main>;

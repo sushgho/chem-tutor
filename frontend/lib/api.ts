@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 // Default "/api" is proxied to the backend by next.config.js, so the browser only
 // ever talks to the frontend's own port (works locally and in GitHub Codespaces).
 export const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+export const REQUIRE_SIGN_IN = process.env.NEXT_PUBLIC_REQUIRE_SIGN_IN === "true";
 
 export type Source = {
   n: number;
@@ -12,14 +13,32 @@ export type Source = {
   image_url?: string;
 };
 
+export async function createGuestSession(): Promise<{ id: number; library_key: string }> {
+  const guestToken = localStorage.getItem("guestSessionToken");
+  const headers = new Headers();
+  if (guestToken) headers.set("X-Guest-Session", guestToken);
+
+  const res = await fetch(API + "/guest/session", { method: "POST", headers });
+  if (!res.ok) throw new Error(await errorMessage(res));
+
+  const session: { id: number; library_key: string; guest_session: string } = await res.json();
+  localStorage.setItem("guestSessionToken", session.guest_session);
+  localStorage.setItem("studentId", String(session.id));
+  localStorage.setItem("studyLibraryKey", session.library_key);
+  return session;
+}
+
 async function authenticatedHeaders(headers?: HeadersInit): Promise<Headers> {
   const result = new Headers(headers);
-  if (supabase) {
+  if (REQUIRE_SIGN_IN && supabase) {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
     if (data.session?.access_token) {
       result.set("Authorization", `Bearer ${data.session.access_token}`);
     }
+  } else {
+    const guestToken = localStorage.getItem("guestSessionToken");
+    if (guestToken) result.set("X-Guest-Session", guestToken);
   }
   return result;
 }

@@ -4,7 +4,7 @@ import Avatar from "@/components/Avatar";
 import { AccountControls } from "@/components/AuthGate";
 import Markdown from "@/components/Markdown";
 import SourcePages from "@/components/SourcePages";
-import { getJSON, postJSON, streamPost, Source } from "@/lib/api";
+import { createGuestSession, getJSON, postJSON, REQUIRE_SIGN_IN, streamPost, Source } from "@/lib/api";
 import { Speaker, listenOnce } from "@/lib/speech";
 
 type Topic = { id: string; title: string };
@@ -44,12 +44,14 @@ export default function Home() {
     if (muted) speaker.current?.stop();
   }, [muted]);
 
-  // Bootstrap curriculum and the student profile attached to the signed-in account.
+  // Bootstrap curriculum and a guest or signed-in student profile.
   useEffect(() => {
     (async () => {
       try {
         setTree(await getJSON<Tree>("/curriculum"));
-        const { id } = await postJSON<{ id: number }>("/auth/session", {});
+        const { id } = REQUIRE_SIGN_IN
+          ? await postJSON<{ id: number }>("/auth/session", {})
+          : await createGuestSession();
         localStorage.setItem("studentId", String(id));
         setStudentId(id);
       } catch (reason) {
@@ -169,7 +171,9 @@ export default function Home() {
     <div className="app">
       <aside className="sidebar">
         <h1>Chemistry Tutor</h1>
-        <AccountControls />
+        {REQUIRE_SIGN_IN
+          ? <AccountControls />
+          : <span className="auth-account-label">Guest mode · saved in this browser</span>}
         <div className="tabs">
           {Object.keys(tree).map((g) => (
             <button key={g} className={g === grade ? "active" : ""} onClick={() => setGrade(g)}>

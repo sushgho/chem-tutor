@@ -1,6 +1,41 @@
+import hashlib
+import secrets
 from uuid import UUID, uuid4
 
 from .db import pool
+
+
+def get_guest_session(session_token: str) -> dict | None:
+    token_hash = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
+    with pool.connection() as c:
+        row = c.execute(
+            """SELECT student_id, library_key FROM guest_sessions
+               WHERE session_token_hash = %s""",
+            (token_hash,),
+        ).fetchone()
+    if not row:
+        return None
+    return {"id": row["student_id"], "library_key": str(row["library_key"])}
+
+
+def create_guest_session() -> dict:
+    session_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
+    library_key = uuid4()
+    with pool.connection() as c:
+        student_id = c.execute(
+            "INSERT INTO students (name) VALUES ('Guest') RETURNING id"
+        ).fetchone()["id"]
+        c.execute(
+            """INSERT INTO guest_sessions (session_token_hash, student_id, library_key)
+               VALUES (%s, %s, %s)""",
+            (token_hash, student_id, library_key),
+        )
+    return {
+        "id": student_id,
+        "library_key": str(library_key),
+        "guest_session": session_token,
+    }
 
 
 def ensure_authenticated_student(auth_user_id: str) -> int:

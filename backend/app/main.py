@@ -38,23 +38,35 @@ def _topic_or_404(topic_id: str):
     return t
 
 
-def authenticated_student_id(authorization: str | None = Header(default=None)) -> int:
-    if not authorization or not authorization.startswith("Bearer "):
+def authenticated_student_id(
+    authorization: str | None = Header(default=None),
+    guest_session: str | None = Header(default=None, alias="X-Guest-Session"),
+) -> int:
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+        if not token:
+            raise HTTPException(401, "Invalid access token.")
+        try:
+            auth_user_id = auth.verify_access_token(token)
+        except auth.AuthServiceUnavailable as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except auth.InvalidAccessToken as exc:
+            raise HTTPException(401, str(exc), headers={"WWW-Authenticate": "Bearer"}) from exc
+        return progress.ensure_authenticated_student(auth_user_id)
+
+    if guest_session:
+        guest = progress.get_guest_session(guest_session)
+        if guest:
+            return guest["id"]
+        raise HTTPException(401, "Invalid guest session.")
+
+    if not authorization:
         raise HTTPException(
             401,
-            "Sign in to access student data.",
+            "Create a guest session to access student data.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = authorization.removeprefix("Bearer ").strip()
-    if not token:
-        raise HTTPException(401, "Invalid access token.")
-    try:
-        auth_user_id = auth.verify_access_token(token)
-    except auth.AuthServiceUnavailable as exc:
-        raise HTTPException(503, str(exc)) from exc
-    except auth.InvalidAccessToken as exc:
-        raise HTTPException(401, str(exc), headers={"WWW-Authenticate": "Bearer"}) from exc
-    return progress.ensure_authenticated_student(auth_user_id)
+    raise HTTPException(401, "Invalid access token.", headers={"WWW-Authenticate": "Bearer"})
 
 
 def _require_student_owner(student_id: int, authenticated_id: int):
@@ -181,6 +193,16 @@ def auth_session(student_id: int = Depends(authenticated_student_id)):
         "id": student_id,
         "library_key": progress.get_student_library_key(student_id),
     }
+
+
+@app.post("/guest/session")
+def guest_session(guest_token: str | None = Header(default=None, alias="X-Guest-Session")):
+    if guest_token:
+        session = progress.get_guest_session(guest_token)
+        if not session:
+            raise HTTPException(401, "Invalid guest session.")
+        return {**session, "guest_session": guest_token}
+    return progress.create_guest_session()
 
 
 @app.get("/students/{student_id}/progress")

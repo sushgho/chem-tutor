@@ -70,6 +70,13 @@ CREATE TABLE IF NOT EXISTS auth_users (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS guest_sessions (
+    session_token_hash TEXT PRIMARY KEY,
+    student_id         BIGINT NOT NULL UNIQUE REFERENCES students(id) ON DELETE CASCADE,
+    library_key        UUID NOT NULL UNIQUE,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS progress (
     student_id   BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     topic_id     TEXT   NOT NULL REFERENCES topics(id) ON DELETE CASCADE,

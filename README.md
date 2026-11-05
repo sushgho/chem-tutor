@@ -148,12 +148,14 @@ This keeps only one service on Render's free compute quota. To create a prototyp
 This is a hobby prototype, not a production hosting guarantee. Render's free backend
 sleeps after inactivity and can take about a minute to wake. Render's free plan has
 monthly usage limits, and Neon Free has usage limits too. Keyword retrieval is less
-semantically capable than the default sentence-transformer mode. Student routes require
-a valid Supabase access token; the backend verifies the token and maps each Supabase
-identity to a separate student profile. The API does not link old anonymous browser
-profiles to accounts because their ownership cannot be securely verified.
+semantically capable than the default sentence-transformer mode. Sign-in is disabled
+by default: each browser gets an isolated guest profile, and its guest token stays in
+that browser's local storage. Clearing that storage loses access to that guest profile.
+Set `NEXT_PUBLIC_REQUIRE_SIGN_IN=true` in the frontend environment and redeploy to
+require Supabase sign-in instead. When enabled, the backend verifies each Supabase
+access token and maps each identity to a separate student profile.
 
-### Configure OTP authentication for production
+### Enable OTP authentication (optional)
 1. Create a Supabase project and enable email OTP. Configure the email template to show
    the one-time token (for example, `{{ .Token }}`), and configure an SMS provider and
    phone OTP if students should sign in by phone. Set the Supabase Auth site URL and
@@ -166,7 +168,8 @@ profiles to accounts because their ownership cannot be securely verified.
    project's JWKS endpoint. For a legacy project using HS256, set `SUPABASE_JWT_SECRET`
    as a backend-only secret. Never expose it through `NEXT_PUBLIC_*`, commit it, or
    paste it into chat.
-4. The sign-in screen explains that the app stores study progress, chat history and
+4. Set `NEXT_PUBLIC_REQUIRE_SIGN_IN=true` in Vercel and redeploy the frontend. The
+   sign-in screen explains that the app stores study progress, chat history and
    uploaded study materials, and that questions are sent to the configured AI service.
    Publish a privacy policy that accurately covers the data collected and providers
    used before sharing the app publicly.

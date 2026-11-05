@@ -5,7 +5,16 @@ import Image from "next/image";
 import { AccountControls } from "@/components/AuthGate";
 import Markdown from "@/components/Markdown";
 import SourcePages from "@/components/SourcePages";
-import { deleteJSON, getJSON, postJSON, streamPost, uploadFile, type Source } from "@/lib/api";
+import {
+  createGuestSession,
+  deleteJSON,
+  getJSON,
+  postJSON,
+  REQUIRE_SIGN_IN,
+  streamPost,
+  uploadFile,
+  type Source,
+} from "@/lib/api";
 import { listenOnce, Speaker } from "@/lib/speech";
 import styles from "./mobile-teacher-app.module.css";
 
@@ -94,7 +103,9 @@ export default function MobileTeacherApp() {
         const curriculum = await getJSON<Tree>("/curriculum");
         if (!active) return;
         setTree(curriculum);
-        const { id, library_key: key } = await postJSON<{ id: number; library_key: string }>("/auth/session", {});
+        const { id, library_key: key } = REQUIRE_SIGN_IN
+          ? await postJSON<{ id: number; library_key: string }>("/auth/session", {})
+          : await createGuestSession();
         if (!active) return;
         localStorage.setItem("studentId", String(id));
         localStorage.setItem("studyLibraryKey", key);
@@ -468,7 +479,9 @@ export default function MobileTeacherApp() {
           <button type="button" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Turn voice on" : "Mute voice"}>
             {muted ? "Sound off" : "Sound on"}
           </button>
-          <AccountControls />
+          {REQUIRE_SIGN_IN
+            ? <AccountControls />
+            : <span className="auth-account-label">Guest mode</span>}
         </div>
       </header>
 
