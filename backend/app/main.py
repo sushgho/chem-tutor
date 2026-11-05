@@ -4,12 +4,12 @@ import urllib.parse
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import course_materials, db, documents, llm, progress, rag
+from . import auth, course_materials, db, documents, llm, progress, rag
 from .config import settings
 from .curriculum import tree
 
@@ -38,6 +38,30 @@ def _topic_or_404(topic_id: str):
     return t
 
 
+def authenticated_student_id(authorization: str | None = Header(default=None)) -> int:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            401,
+            "Sign in to access student data.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(401, "Invalid access token.")
+    try:
+        auth_user_id = auth.verify_access_token(token)
+    except auth.AuthServiceUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except auth.InvalidAccessToken as exc:
+        raise HTTPException(401, str(exc), headers={"WWW-Authenticate": "Bearer"}) from exc
+    return progress.ensure_authenticated_student(auth_user_id)
+
+
+def _require_student_owner(student_id: int, authenticated_id: int):
+    if student_id != authenticated_id:
+        raise HTTPException(403, "You cannot access another student's data.")
+
+
 def _stream(gen, chunks):
     headers = {"X-Sources": urllib.parse.quote(json.dumps(rag.sources_payload(chunks)))}
     return StreamingResponse(gen, media_type="text/plain; charset=utf-8", headers=headers)
@@ -58,10 +82,6 @@ def _source_page_search_query(question: str) -> str:
 
 
 # ---------- models ----------
-class StudentIn(BaseModel):
-    name: str = "Student"
-
-
 class LessonIn(BaseModel):
     student_id: int
     topic_id: str
@@ -155,18 +175,30 @@ def study_page_image(
     )
 
 
-@app.post("/students")
-def create_student(body: StudentIn):
-    return {"id": progress.ensure_student(body.name)}
+@app.post("/auth/session")
+def auth_session(student_id: int = Depends(authenticated_student_id)):
+    return {
+        "id": student_id,
+        "library_key": progress.get_student_library_key(student_id),
+    }
 
 
 @app.get("/students/{student_id}/progress")
-def student_progress(student_id: int):
+def student_progress(
+    student_id: int,
+    authenticated_id: int = Depends(authenticated_student_id),
+):
+    _require_student_owner(student_id, authenticated_id)
     return progress.get_progress(student_id)
 
 
 @app.post("/students/{student_id}/status")
-def student_status(student_id: int, body: StatusIn):
+def student_status(
+    student_id: int,
+    body: StatusIn,
+    authenticated_id: int = Depends(authenticated_student_id),
+):
+    _require_student_owner(student_id, authenticated_id)
     _topic_or_404(body.topic_id)
     try:
         progress.set_status(student_id, body.topic_id, body.status)
@@ -180,7 +212,9 @@ def student_documents(
     student_id: int,
     subject: str,
     library_key: str = Header(..., alias="X-Study-Library-Key"),
+    authenticated_id: int = Depends(authenticated_student_id),
 ):
+    _require_student_owner(student_id, authenticated_id)
     if subject not in documents.SUBJECTS:
         raise HTTPException(400, "unknown subject")
     key = documents.validate_library_key(library_key)
@@ -193,7 +227,9 @@ def upload_student_document(
     subject: str = Form(...),
     file: UploadFile = File(...),
     library_key: str = Header(..., alias="X-Study-Library-Key"),
+    authenticated_id: int = Depends(authenticated_student_id),
 ):
+    _require_student_owner(student_id, authenticated_id)
     try:
         key = documents.validate_library_key(library_key)
         return documents.create_document(student_id, key, subject, file.filename or "", file.file)
@@ -206,7 +242,9 @@ def remove_student_document(
     student_id: int,
     document_id: int,
     library_key: str = Header(..., alias="X-Study-Library-Key"),
+    authenticated_id: int = Depends(authenticated_student_id),
 ):
+    _require_student_owner(student_id, authenticated_id)
     key = documents.validate_library_key(library_key)
     if not documents.delete_document(student_id, key, document_id):
         raise HTTPException(404, "document not found")
@@ -217,7 +255,9 @@ def remove_student_document(
 def study_chat(
     body: StudyChatIn,
     library_key: str = Header(..., alias="X-Study-Library-Key"),
+    authenticated_id: int = Depends(authenticated_student_id),
 ):
+    _require_student_owner(body.student_id, authenticated_id)
     key = documents.validate_library_key(library_key)
     topic = _topic_or_404(body.topic_id) if body.topic_id else None
     if topic and body.subject != "chemistry":
@@ -306,7 +346,11 @@ def study_chat(
 
 
 @app.post("/lesson")
-def lesson(body: LessonIn):
+def lesson(
+    body: LessonIn,
+    authenticated_id: int = Depends(authenticated_student_id),
+):
+    _require_student_owner(body.student_id, authenticated_id)
     topic = _topic_or_404(body.topic_id)
     progress.touch(body.student_id, body.topic_id)
     chunks = rag.retrieve(
@@ -334,7 +378,11 @@ def lesson(body: LessonIn):
 
 
 @app.post("/ask")
-def ask(body: AskIn):
+def ask(
+    body: AskIn,
+    authenticated_id: int = Depends(authenticated_student_id),
+):
+    _require_student_owner(body.student_id, authenticated_id)
     topic = _topic_or_404(body.topic_id)
     progress.record_doubt(body.student_id, body.topic_id)
     progress.log_message(body.student_id, body.topic_id, "doubt", "user", body.question)
@@ -374,7 +422,11 @@ def quiz(body: QuizIn):
 
 
 @app.post("/quiz/submit")
-def quiz_submit(body: QuizResultIn):
+def quiz_submit(
+    body: QuizResultIn,
+    authenticated_id: int = Depends(authenticated_student_id),
+):
+    _require_student_owner(body.student_id, authenticated_id)
     _topic_or_404(body.topic_id)
     return progress.record_quiz(body.student_id, body.topic_id, body.score, body.total)
 

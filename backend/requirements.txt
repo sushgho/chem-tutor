@@ -12,3 +12,4 @@ pypdfium2>=4.30
 Pillow>=10
 openai>=1.40
 python-multipart>=0.0.9
+PyJWT[crypto]>=2.10

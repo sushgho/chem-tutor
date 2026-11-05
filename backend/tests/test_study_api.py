@@ -14,6 +14,13 @@ LIBRARY_KEY = "0b4baf2c-e52c-4acd-8d75-9cce2f9f0c63"
 
 class StudyApiTests(unittest.TestCase):
     def setUp(self):
+        self.student_override = lambda: 8
+        main.app.dependency_overrides[main.authenticated_student_id] = self.student_override
+        self.addCleanup(
+            main.app.dependency_overrides.pop,
+            main.authenticated_student_id,
+            None,
+        )
         self.init_db = patch.object(main.db, "init_db")
         self.close_pool = patch.object(main.db.pool, "close")
         self.init_db.start()
@@ -26,6 +33,27 @@ class StudyApiTests(unittest.TestCase):
         self.client_context = TestClient(main.app)
         self.client = self.client_context.__enter__()
         self.addCleanup(self.client_context.__exit__, None, None, None)
+
+    def test_auth_session_returns_the_authenticated_student_profile(self):
+        with patch.object(main.progress, "get_student_library_key", return_value=LIBRARY_KEY):
+            response = self.client.post("/auth/session", json={})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"id": 8, "library_key": LIBRARY_KEY})
+
+    def test_student_data_requires_a_bearer_token(self):
+        main.app.dependency_overrides.pop(main.authenticated_student_id)
+        try:
+            response = self.client.get("/students/8/progress")
+        finally:
+            main.app.dependency_overrides[main.authenticated_student_id] = self.student_override
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_student_cannot_access_another_students_progress(self):
+        response = self.client.get("/students/9/progress")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_document_library_requires_opaque_key(self):
         response = self.client.get("/students/8/documents?subject=biology")

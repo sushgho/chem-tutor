@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { AccountControls } from "@/components/AuthGate";
 import Markdown from "@/components/Markdown";
 import SourcePages from "@/components/SourcePages";
 import { deleteJSON, getJSON, postJSON, streamPost, uploadFile, type Source } from "@/lib/api";
@@ -93,19 +94,16 @@ export default function MobileTeacherApp() {
         const curriculum = await getJSON<Tree>("/curriculum");
         if (!active) return;
         setTree(curriculum);
-        const storedId = Number(localStorage.getItem("studentId") || 0);
-        const id =
-          Number.isInteger(storedId) && storedId > 0
-            ? storedId
-            : (await postJSON<{ id: number }>("/students", { name: "Student" })).id;
+        const { id, library_key: key } = await postJSON<{ id: number; library_key: string }>("/auth/session", {});
         if (!active) return;
         localStorage.setItem("studentId", String(id));
-        const key = localStorage.getItem("studyLibraryKey") || crypto.randomUUID();
         localStorage.setItem("studyLibraryKey", key);
         setLibraryKey(key);
         setStudentId(id);
-      } catch {
-        if (active) setError("Can't reach the tutor service. Check your internet connection and try again.");
+      } catch (reason) {
+        if (active) {
+          setError(reason instanceof Error ? reason.message : "Could not initialize your student profile.");
+        }
       }
     }
     void bootstrap();
@@ -470,6 +468,7 @@ export default function MobileTeacherApp() {
           <button type="button" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Turn voice on" : "Mute voice"}>
             {muted ? "Sound off" : "Sound on"}
           </button>
+          <AccountControls />
         </div>
       </header>
 

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
+import { AccountControls } from "@/components/AuthGate";
 import Markdown from "@/components/Markdown";
 import SourcePages from "@/components/SourcePages";
 import { getJSON, postJSON, streamPost, Source } from "@/lib/api";
@@ -43,19 +44,16 @@ export default function Home() {
     if (muted) speaker.current?.stop();
   }, [muted]);
 
-  // bootstrap: curriculum + student
+  // Bootstrap curriculum and the student profile attached to the signed-in account.
   useEffect(() => {
     (async () => {
       try {
         setTree(await getJSON<Tree>("/curriculum"));
-        let id = Number(localStorage.getItem("studentId") || 0);
-        if (!id) {
-          id = (await postJSON<{ id: number }>("/students", { name: "Student" })).id;
-          localStorage.setItem("studentId", String(id));
-        }
+        const { id } = await postJSON<{ id: number }>("/auth/session", {});
+        localStorage.setItem("studentId", String(id));
         setStudentId(id);
-      } catch {
-        setError("Can't reach the backend. Is it running on the URL in NEXT_PUBLIC_API_URL?");
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Could not initialize your student profile.");
       }
     })();
   }, []);
@@ -171,6 +169,7 @@ export default function Home() {
     <div className="app">
       <aside className="sidebar">
         <h1>Chemistry Tutor</h1>
+        <AccountControls />
         <div className="tabs">
           {Object.keys(tree).map((g) => (
             <button key={g} className={g === grade ? "active" : ""} onClick={() => setGrade(g)}>

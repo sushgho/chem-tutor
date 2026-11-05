@@ -1,4 +1,41 @@
+from uuid import UUID, uuid4
+
 from .db import pool
+
+
+def ensure_authenticated_student(auth_user_id: str) -> int:
+    user_uuid = UUID(auth_user_id)
+    with pool.connection() as c:
+        c.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (str(user_uuid),),
+        )
+        row = c.execute(
+            "SELECT student_id FROM auth_users WHERE auth_user_id = %s",
+            (user_uuid,),
+        ).fetchone()
+        if row:
+            return row["student_id"]
+
+        student_id = c.execute(
+            "INSERT INTO students (name) VALUES ('Student') RETURNING id"
+        ).fetchone()["id"]
+        c.execute(
+            "INSERT INTO auth_users (auth_user_id, student_id, library_key) VALUES (%s, %s, %s)",
+            (user_uuid, student_id, uuid4()),
+        )
+        return student_id
+
+
+def get_student_library_key(student_id: int) -> str:
+    with pool.connection() as c:
+        row = c.execute(
+            "SELECT library_key FROM auth_users WHERE student_id = %s",
+            (student_id,),
+        ).fetchone()
+    if not row:
+        raise RuntimeError("Authenticated student profile is missing.")
+    return str(row["library_key"])
 
 
 def ensure_student(name: str) -> int:

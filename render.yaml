@@ -16,3 +16,5 @@ services:
         value: keyword
       - key: GROQ_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false

@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS students (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS auth_users (
+    auth_user_id UUID PRIMARY KEY,
+    student_id   BIGINT NOT NULL UNIQUE REFERENCES students(id) ON DELETE CASCADE,
+    library_key  UUID NOT NULL UNIQUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS progress (
     student_id   BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     topic_id     TEXT   NOT NULL REFERENCES topics(id) ON DELETE CASCADE,

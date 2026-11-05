@@ -4,6 +4,23 @@ from app.llm import study_prompt, study_teacher_system
 
 
 class StudyPromptTests(unittest.TestCase):
+    def test_math_answers_use_renderable_latex_and_plain_language_explanations(self):
+        for subject in ("maths", "physics", "chemistry", "biology"):
+            with self.subTest(subject=subject):
+                system = study_teacher_system(subject, "XI")
+                self.assertIn("inline LaTeX delimiters $...$", system)
+                self.assertIn("plain-language explanation", system)
+                self.assertIn("Avoid unnatural phrasing", system)
+
+    def test_chemistry_teacher_uses_readable_structure_and_explains_equations(self):
+        from app.llm import teacher_system
+
+        system = teacher_system("XI")
+        self.assertIn("direct answer", system)
+        self.assertIn("a few clear bullets", system)
+        self.assertIn("explain it immediately in plain language", system)
+        self.assertIn("Do not write awkward prose", system)
+
     def test_subject_and_exam_modes_are_specific(self):
         prompt = study_prompt("Make a set", "[1] (notes.txt)\nVectors", "maths", "jee")
         self.assertIn("SUBJECT: maths", prompt)

@@ -59,6 +59,15 @@ cp .env.local.example .env.local
 npm install
 npm run dev          # http://localhost:3000
 ```
+Before starting the app, set `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `frontend/.env.local`. Student sign-in uses
+email or phone as the user ID. Students can sign in using a password or a one-time code
+through Supabase Auth. Configure email delivery and the email OTP template in Supabase;
+phone sign-in also requires an SMS provider and phone OTP enabled in Supabase Auth.
+Phone numbers must use international format (E.164). New users and existing OTP-only
+users can first verify with a one-time code, then choose **Set password** in their
+signed-in account controls to enable password sign-in.
+Also set `SUPABASE_URL` in `backend/.env` to the same project URL.
 Use Chrome or Edge for voice input.
 
 ## How it works
@@ -94,10 +103,9 @@ chat, quizzes, and progress still need an internet connection and the backend.
 The mobile app provides separate Maths, Physics, Chemistry, and Biology tutors for
 Classes XI-XII. Learners can upload text-based PDFs or UTF-8 TXT notes; the backend
 extracts and indexes their text for subject-specific chat and summaries. Uploaded
-materials stay in the database until deleted from the app. A random key stored in the
-browser keeps each study library separate; clearing this browser's site data also clears
-the key needed to access that library. Scanned PDFs require OCR before upload. The
-upload limit is 12 MB, 100 PDF pages, and 300,000 extracted characters.
+materials stay in the database until deleted from the app and are associated with the
+signed-in account. Scanned PDFs require OCR before upload. The upload limit is 12 MB,
+100 PDF pages, and 300,000 extracted characters.
 
 Learners can select a Chemistry syllabus topic or choose a chapter and optional numbered
 section topic for Maths, Physics, or Biology, then start a short lesson or a one-question
@@ -138,10 +146,33 @@ This keeps only one service on Render's free compute quota. To create a prototyp
 This is a hobby prototype, not a production hosting guarantee. Render's free backend
 sleeps after inactivity and can take about a minute to wake. Render's free plan has
 monthly usage limits, and Neon Free has usage limits too. Keyword retrieval is less
-semantically capable than the default sentence-transformer mode. The app allows
-anonymous students and has no request throttling, so monitor Groq usage and add abuse
-protections before widely sharing it. Student progress and conversation history are
-stored in the database; publish an appropriate privacy notice.
+semantically capable than the default sentence-transformer mode. Student routes require
+a valid Supabase access token; the backend verifies the token and maps each Supabase
+identity to a separate student profile. The API does not link old anonymous browser
+profiles to accounts because their ownership cannot be securely verified.
+
+### Configure OTP authentication for production
+1. Create a Supabase project and enable email OTP. Configure the email template to show
+   the one-time token (for example, `{{ .Token }}`), and configure an SMS provider and
+   phone OTP if students should sign in by phone. Set the Supabase Auth site URL and
+   allowed URLs to the actual HTTPS frontend domain.
+2. In Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to the frontend project environment, then
+   redeploy.
+3. In Render, set `SUPABASE_URL` to the same project URL and redeploy the backend.
+   Supabase projects using asymmetric JWT signing keys are verified through the
+   project's JWKS endpoint. For a legacy project using HS256, set `SUPABASE_JWT_SECRET`
+   as a backend-only secret. Never expose it through `NEXT_PUBLIC_*`, commit it, or
+   paste it into chat.
+4. The sign-in screen explains that the app stores study progress, chat history and
+   uploaded study materials, and that questions are sent to the configured AI service.
+   Publish a privacy policy that accurately covers the data collected and providers
+   used before sharing the app publicly.
+
+The tutor stores student progress and chat messages in the database, and uploaded files
+remain there until deleted. Do not collect or review student activity beyond what is
+disclosed to students. Monitor Groq usage and add abuse protections before widely
+sharing the app.
 
 To publish the same experience on the web and Google Play:
 1. Deploy the frontend and backend to production, using a stable HTTPS domain such as

@@ -9,6 +9,12 @@ import MermaidDiagram from "@/components/MermaidDiagram";
 import "katex/dist/katex.min.css";
 import "katex/contrib/mhchem"; // enables \ce{...} chemical equations
 
+function normalizeMathDelimiters(markdown: string): string {
+  return markdown
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, formula: string) => `$$\n${formula}\n$$`)
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, formula: string) => `$${formula}$`);
+}
+
 const components: Components = {
   pre({ children, ...props }) {
     const code = React.Children.only(children);
@@ -25,7 +31,7 @@ const components: Components = {
 export default function Markdown({ children }: { children: string }) {
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={components}>
-      {children}
+      {normalizeMathDelimiters(children)}
     </ReactMarkdown>
   );
 }

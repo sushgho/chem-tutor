@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     # Cosine distance above which a chunk is treated as irrelevant
     max_dist: float = 0.6
     cors_origins: str = "http://localhost:3000"
+    supabase_url: str = ""
+    supabase_jwt_secret: str = ""
 
 
 settings = Settings()
